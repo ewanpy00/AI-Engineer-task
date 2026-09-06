@@ -1,0 +1,287 @@
+{
+  "stage": "research",
+  "checked_at": "2026-09-06T08:23:50Z",
+  "checked_from_environment": "local developer machine (not a cloud/datacenter IP) — matters for the youtube section",
+  "tools_used": ["curl 8.x", "node 25 + npm:devalue", "yt-dlp 2026.06.09", "deno 2.9.0"],
+  "site_stack": {
+    "framework": "Nuxt 3 (Vue) SSR",
+    "note": "task assumed Next.js (__NEXT_DATA__); that is WRONG. Real hydration payload is <script id=\"__NUXT_DATA__\"> in the 'devalue' flattened-array format, not plain JSON.",
+    "verified_by": "curl https://www.metacritic.com/game/ ; grep for __NEXT_DATA__ (absent) vs __NUXT_DATA__ (present)",
+    "nuxt_data_parsing": {
+      "method": "npm package 'devalue', parse(rawScriptText, identityRevivers)",
+      "identity_revivers_needed": ["ShallowReactive", "ShallowRef", "Reactive", "Ref", "EmptyRef", "EmptyShallowRef"],
+      "verified_on_pages": ["/game/", "/browse/game/all/all/all-time/new/", "/browse/game/all/all/all-time/new/2/", "/game/onimusha-way-of-the-sword/"]
+    },
+    "nuxt_data_keys_of_interest": {
+      "/game/": "data['loadPage:door:games-door-global:'].components[] -> find item where meta.componentName === 'new-releases-carousel'",
+      "/browse/game/all/all/all-time/new/[N]/": "data['browse-game-/browse/game/all/all/all-time/new/[N or empty]/'] = {items:[], total:N}",
+      "/game/{slug}/": "data['loadPage:games:{slug}:'] (not fully mapped, direct API preferred instead)"
+    }
+  },
+  "primary_data_source": {
+    "name": "backend.metacritic.com JSON API",
+    "auth_required": false,
+    "api_key_param": "apiKey=... appears on some frontend calls (dropdowns/footer) but was NOT required on any endpoint we used (finder, product, reviews, stats, summary) — all returned 200 without it",
+    "user_agent_blocking": "none observed in any test (curl default, empty, python-requests, Java, Scrapy, Go-http-client, okhttp all returned 200)",
+    "caching": "Cloudflare edge cache observed on some routes: cf-cache-status HIT, age header present, cache-control public max-age=600",
+    "rate_limit": {
+      "documented": false,
+      "observed_burst_test": "20 rapid requests, all HTTP 200, no 429, no x-ratelimit-* headers",
+      "assumption": "ASSUMPTION: undocumented private API, no SLA. Recommend conservative client-side rate limit (e.g. <=1 req/s) with exponential backoff on non-2xx; burst behavior at production volume was not tested to avoid getting the research IP banned."
+    }
+  },
+  "html_source": {
+    "name": "www.metacritic.com HTML pages",
+    "anti_bot": {
+      "type": "Cloudflare WAF, string-based User-Agent blocklist (not a JS challenge, not TLS-fingerprint based as far as tested)",
+      "blocked_user_agents_confirmed": ["python-requests/2.31.0", "python-requests/2.28.1", "Java/17.0.1"],
+      "blocked_response": {"status": 403, "content_type": "text/plain", "body": "You are not allowed to access this resource"},
+      "allowed_user_agents_confirmed": ["curl/8.x default", "empty UA", "Mozilla/5.0 ... Chrome/120", "Googlebot/2.1", "node-fetch", "Scrapy/2.11", "Go-http-client/1.1", "okhttp/4.9.0"],
+      "recommendation_fact_only": "any UA other than the specific blocked library-default strings passes; browser spoofing is not required, just avoid literal 'python-requests'/'Java/' UA strings"
+    },
+    "robots_txt": {
+      "fetched": true,
+      "disallow_named_bots": ["AhrefsBot", "AwarioRssBot", "AwarioSmartBot", "barkrowler", "BLEXBot", "CCBot", "DataForSeoBot", "dotbot", "GPTBot", "OAI-SearchBot", "ImagesiftBot", "MJ12bot", "SemrushBot", "TurnitinBot"],
+      "disallow_generic_ua": ["/search", "/signup", "/login", "/user", "/jl/", "/8264/", "/7336/"],
+      "game_pages_disallowed": false,
+      "note": "robots.txt fact only, not a legal/ToS opinion"
+    }
+  },
+  "endpoints": [
+    {
+      "id": "new_releases_first_20",
+      "purpose": "Первые 20 игр (раздел New Releases на /game/)",
+      "method": "GET",
+      "url": "https://backend.metacritic.com/finder/metacritic/web?componentName=new-releases-carousel&componentType=ProductList&sortBy=-releaseDate&metaScoreMin=1&offset=0&limit=20&mcoTypeId=13",
+      "verified": true,
+      "verification": "data.items[] byte-content matches the 'new-releases-carousel' block embedded in __NUXT_DATA__ of /game/ (same titles, same order)",
+      "response_shape": {
+        "data.totalResults": "int, 18524 at check time (filtered by metaScoreMin=1)",
+        "data.items[]": "array of game-title objects, see 'game_title_item_fields'"
+      },
+      "notes": "mcoTypeId=13 empirically = games; metaScoreMin=1 excludes titles with zero critic reviews"
+    },
+    {
+      "id": "browse_all_new_paginated",
+      "purpose": "SEE ALL, сортировка Новые, постраничный обход",
+      "method": "GET",
+      "url": "https://backend.metacritic.com/finder/metacritic/web?sortBy=-releaseDate&offset={page*24}&limit=24&mcoTypeId=13",
+      "verified": true,
+      "verification": "offset=0 output byte-matches real page https://www.metacritic.com/browse/game/all/all/all-time/new/ (same first 6 titles/dates); totalResults(177895) matches __NUXT_DATA__ 'total' key on that page",
+      "response_shape": {
+        "data.total": "int, 177895 at check time (no metaScoreMin filter, includes score:null/sentiment:'tbd' titles)",
+        "data.items[]": "array of game-title objects"
+      },
+      "notes": "limit is honored by server (tested 5/20/24/50). Site UI itself uses page size 24, not 20 — that's just a UI convention, not a hard server limit.",
+      "risk": "Sort order for items sharing releaseDate has no stable tie-break confirmed: computed offset=24 request did not match the real page-2 listing captured minutes apart. Dedup must be by stable id/slug, not by offset/page number."
+    },
+    {
+      "id": "product",
+      "purpose": "Карточка игры целиком (кроме userscore и текстов отзывов)",
+      "method": "GET",
+      "url": "https://backend.metacritic.com/games/metacritic/{slug}/web?componentName=product&componentType=Product",
+      "verified": true,
+      "example_slug": "onimusha-way-of-the-sword",
+      "field_paths": {
+        "title": "data.item.title",
+        "cover_image": "data.item.images[] where typeName in ('cardImage','mainImage') -> .bucketPath (see 'cover_image_url' endpoint)",
+        "platforms": "data.item.platforms[] -> {name, slug, isLeadPlatform, releaseDate, relatedGameId, criticScoreSummary:{score,max,reviewCount,positiveCount,neutralCount,negativeCount,sentiment,url}}",
+        "metascore_per_platform": "data.item.platforms[].criticScoreSummary.score  (already included, no extra call needed)",
+        "userscore_per_platform": "NOT present here — requires separate call, see endpoint 'user_score_stats'",
+        "developer": "data.item.production.companies[] where typeName=='Developer' -> .name",
+        "publisher": "data.item.production.companies[] where typeName=='Publisher' -> .name",
+        "description": "data.item.description (plain text with \\r\\n, no HTML tags observed)",
+        "official_trailer_video": "data.item.video.embedUrl / data.item.video.manifestUrl (JW Player HLS m3u8) — this is Metacritic's own official trailer, NOT a YouTube let's-play",
+        "genres": "data.item.genres[].name",
+        "esrb_rating": "data.item.rating"
+      },
+      "css_fallback": {
+        "title": "h1.hero-title__text",
+        "note": "only spot-checked title; JSON path is primary and sufficient, did not map every field to CSS"
+      }
+    },
+    {
+      "id": "critic_score_stats",
+      "purpose": "Metascore сводка по конкретной платформе (альтернатива уже включённой в product)",
+      "method": "GET",
+      "url": "https://backend.metacritic.com/reviews/metacritic/critic/games/{slug}/platform/{platform_slug}/stats/web",
+      "url_without_platform_returns": "lead platform only (isLeadPlatform:true), ?platform=xxx query param is IGNORED — platform must be a path segment",
+      "verified": true,
+      "response_shape": {"data.item": "{id,max:100,score,reviewCount,positiveCount,neutralCount,negativeCount,sentiment,url}"}
+    },
+    {
+      "id": "user_score_stats",
+      "purpose": "Userscore сводка по конкретной платформе (обязательный отдельный вызов на каждую платформу)",
+      "method": "GET",
+      "url": "https://backend.metacritic.com/reviews/metacritic/user/games/{slug}/platform/{platform_slug}/stats/web",
+      "verified": true,
+      "response_shape": {"data.item": "{id,max:10,score,reviewCount,positiveCount,neutralCount,negativeCount,sentiment,url}"},
+      "notes": "platform_slug values come from product.data.item.platforms[].slug, e.g. pc, playstation-5, xbox-series-x, nintendo-switch-2"
+    },
+    {
+      "id": "critic_reviews_list",
+      "purpose": "Отзывы критиков с текстом (quote), постранично, по платформе",
+      "method": "GET",
+      "url": "https://backend.metacritic.com/reviews/metacritic/critic/games/{slug}/platform/{platform_slug}/web?offset=0&limit=10&filterBySentiment=all&sort=date&componentType=ReviewList",
+      "verified": true,
+      "pagination": {
+        "limit_param_honored": false,
+        "actual_hard_page_size": 10,
+        "verified_with_limits_tested": [10, 20, 50, 100],
+        "total_field": "data.totalResults"
+      },
+      "item_fields": ["quote", "score(0-100)", "url", "date", "author", "publicationName", "publicationSlug", "platform"]
+    },
+    {
+      "id": "user_reviews_list",
+      "purpose": "Отзывы пользователей с текстом (quote), постранично, по платформе",
+      "method": "GET",
+      "url": "https://backend.metacritic.com/reviews/metacritic/user/games/{slug}/platform/{platform_slug}/web?offset=0&limit=50&filterBySentiment=all&sort=date&componentType=ReviewList",
+      "verified": true,
+      "pagination": {
+        "limit_param_honored": true,
+        "verified_with_limits_tested": [50, 100, 200, 500, 1000],
+        "limit_5000_result": "HTTP 500 upstream error (SyntaxError parsing upstream response) — real ceiling is somewhere between 1000 and 5000, not established precisely",
+        "site_default_limit": 50,
+        "total_field": "data.totalResults"
+      },
+      "item_fields": ["quote", "score(0-10)", "date", "author", "spoiler", "platform", "reviewedProduct.platform"],
+      "important_caveat": "stats.reviewCount (all ratings incl. textless) can be LARGER than reviews_list.totalResults (only entries with quote). Example onimusha/pc: stats reviewCount=11, list totalResults=5."
+    },
+    {
+      "id": "critic_reviews_summary",
+      "purpose": "Готовая подборка цитат критиков по тональности (может заменить часть суммаризации)",
+      "method": "GET",
+      "url": "https://backend.metacritic.com/reviews/metacritic/critic/games/{slug}/summary/web  (и .../platform/{platform_slug}/summary/web)",
+      "verified": true,
+      "response_shape": {"data.item": "{default:[...], positive:[...], negative:[...], neutral:[...]}"},
+      "example_counts_onimusha": {"default": 7, "positive": 7, "negative": 0, "neutral": 7},
+      "notes": "undocumented endpoint, not linked from any page we inspected directly but responds 200; without /platform/ segment returns lead-platform summary only, same as stats endpoint"
+    },
+    {
+      "id": "user_reviews_summary",
+      "purpose": "Готовая подборка цитат пользователей по тональности",
+      "method": "GET",
+      "url": "https://backend.metacritic.com/reviews/metacritic/user/games/{slug}/summary/web  (и .../platform/{platform_slug}/summary/web)",
+      "verified": true,
+      "example_counts_onimusha": {"default": 7, "positive": 7, "negative": 2, "neutral": 1}
+    },
+    {
+      "id": "cover_image_url",
+      "purpose": "Прямой URL обложки без подписи",
+      "method": "GET",
+      "url": "https://www.metacritic.com/a/img/{bucketPath}",
+      "verified": true,
+      "verification": "downloaded file, dimensions matched images[].width/height metadata exactly (226x332)",
+      "notes": "bucketPath comes from product.data.item.images[].bucketPath, e.g. /provider/7/2/7-1781631535.jpg. This returns the ORIGINAL uploaded file."
+    },
+    {
+      "id": "cover_image_resized_signed",
+      "purpose": "CDN resize вариант (для справки, НЕ рекомендуется для произвольных размеров)",
+      "url_pattern": "https://www.metacritic.com/a/img/resize/{signature}/catalog{bucketPath}?width=W&height=H&fit=crop&auto=webp",
+      "verified": true,
+      "finding": "signature is bound to the exact width/height query values used when it was generated; changing width/height with the same signature returns HTTP 403. Cannot be constructed arbitrarily server-side without knowing the signing algorithm/secret."
+    },
+    {
+      "id": "related_carousel_by_genre",
+      "purpose": "Похожие игры по версии Metacritic (весь их каталог, не ваша БД)",
+      "method": "GET",
+      "url": "https://backend.metacritic.com/finder/metacritic/web?sortBy=-metaScore&mcoTypeId=13&genres={genre}&offset=0&limit=24&componentName=related-carousel",
+      "verified": true,
+      "notes": "useful only as a data point that 'genre' is the explicit similarity signal Metacritic itself surfaces; not directly usable to find similar games restricted to your own small local DB"
+    }
+  ],
+  "game_title_item_fields": {
+    "id": "int, aggregate 'title' id across platforms",
+    "title": "string",
+    "slug": "string",
+    "releaseDate": "YYYY-MM-DD",
+    "rating": "ESRB string or null",
+    "image.bucketPath": "string, see cover_image_url",
+    "criticScoreSummary": "{score,reviewCount,positiveCount,neutralCount,negativeCount,sentiment,url} — score/sentiment null/'tbd' if no reviews yet",
+    "userScore.score": "float 0-10, present in listing endpoints (finder), aggregate lead-platform only",
+    "genres[].name": "string[]",
+    "description": "string or null (null in listing endpoints, present in product endpoint)"
+  },
+  "reviews_summary": {
+    "critic_vs_user": "fully separate endpoints, separate scales (critic 0-100, user 0-10), both are further split per platform",
+    "per_game_platform_calls_needed_worst_case": "for a title with 4 platforms: 4x product-included critic score (free) + 4x user_score_stats + up to 4x N/10 critic_reviews_list pages + up to 4x M/50 user_reviews_list pages, OR 4x2 summary calls as a cheaper alternative"
+  },
+  "youtube": {
+    "official_api_search": {
+      "endpoint": "GET https://www.googleapis.com/youtube/v3/search?part=snippet&q={query}&type=video&order=viewCount&videoDuration=long&key={API_KEY}",
+      "verified_via": "official Google documentation (developers.google.com/youtube/v3/docs/search/list, developers.google.com/youtube/v3/determine_quota_cost) — not tested live, no API key available in this environment",
+      "order_param_supports_viewCount": true,
+      "search_list_returns_view_count_directly": false,
+      "needs_extra_call": "videos.list?part=statistics for real viewCount per candidate video id",
+      "quota_cost_search_list": "100 units per call",
+      "quota_cost_videos_list": "1 unit per call",
+      "default_daily_quota": "10000 units/day per project",
+      "practical_search_ceiling": "~100 search.list calls/day per API key/project",
+      "cross_checked_via": "web search, multiple independent 2026 sources agree on the 100-unit/10000-daily figures"
+    },
+    "official_api_captions_download": {
+      "verified_via": "developers.google.com/youtube/v3/docs/captions/download (official doc)",
+      "finding": "requires OAuth and 'permission to edit the video' (scopes youtube.force-ssl / youtubepartner) — only the video owner/channel can download captions via the official API. Cannot be used to fetch a third-party let's-play creator's captions under any circumstances with just an API key.",
+      "conclusion": "official API key is USEFUL ONLY for search, NEVER for transcript retrieval"
+    },
+    "unofficial_timedtext_scrape": {
+      "mechanism": "watch page HTML -> ytInitialPlayerResponse.captions.playerCaptionsTracklistRenderer.captionTracks[].baseUrl (signed URL) -> GET that URL for the caption content",
+      "tested_live": true,
+      "result": "GET on the signed timedtext URL returned HTTP 200 with an EMPTY body (0 bytes) from this environment's IP via plain curl (no browser, no cookies)",
+      "matches_known_issue": "jdepoix/youtube-transcript-api GitHub issue #511 and others: YouTube blocks requests from known cloud-provider IP ranges (AWS/GCP/Azure/DigitalOcean) by ASN regardless of request volume",
+      "workarounds_documented_not_verified": ["rotating residential proxies", "authenticated cookies (risk: account ban)"]
+    },
+    "yt_dlp": {
+      "tested_live": true,
+      "environment": "non-cloud local machine",
+      "result_auto_subs": "successfully downloaded a valid .vtt auto-caption file for a public video",
+      "result_search_without_key": "ytsearch5:<query> successfully returned 5 candidate videos with id/title/view_count/duration fields, no API key, no quota",
+      "caveat": "log showed '[jsc:deno] Solving JS challenges using deno' — yt-dlp needed an external JS runtime (Deno) installed on the host to pass YouTube's PO-token/JS challenge; this is a 2025-2026-era requirement, adds deployment complexity (must ship a JS runtime in the container)",
+      "cloud_ip_risk_documented_not_verified_here": "per yt-dlp GitHub issues/wiki (2026): datacenter IPs (AWS/GCP/Azure/Hetzner/DigitalOcean, publicly known ranges) get LOGINREQUIRED at the player-API step BEFORE any format URLs are returned, independent of PO token handling — likely to fail on a typical cloud VM even with yt-dlp+deno configured correctly"
+    },
+    "integration_time_estimate_ASSUMPTION": {
+      "search_with_official_key": "1-2 hours to wire up, but daily quota (~100 searches/day) is incompatible at face value with up to ~480 games/day (20/hour) unless caching/dedup is added",
+      "transcript_no_key_yt_dlp": "3-5 hours minimum for a working integration (yt-dlp + deno in Docker image + auto-sub fallback logic), production reliability on cloud IP not established here — additional unbounded time for proxy/retry handling",
+      "stt_whisper_fallback": "not tested live in this research; typical open-source Whisper base/small CPU inference is slower than real-time, so a 10-20 min let's-play could take minutes-to-tens-of-minutes of CPU time — order-of-magnitude ASSUMPTION only"
+    }
+  },
+  "similar_games_approaches": [
+    {
+      "id": "A_genre_developer_overlap",
+      "description": "Similarity by intersection of genres[] (+ optionally developer/platform) among games already in local DB, using data already collected from the product endpoint — no extra external calls.",
+      "cost": "no new external API calls; implemented as a DB query / in-memory filter",
+      "data_availability_verified": true
+    },
+    {
+      "id": "B_description_embeddings",
+      "description": "Embed description text (external embeddings API or local sentence-transformers model), cosine similarity across local DB.",
+      "cost": "1 embedding call per game at ingest time + vector storage (pgvector or in-memory given expected small DB size after one day) + similarity computation code",
+      "verified_live": false,
+      "note": "ASSUMPTION on cost, no embeddings key available in this research environment"
+    },
+    {
+      "id": "C_metacritic_related_carousel_intersected_with_local_db",
+      "description": "Call Metacritic's own related-carousel (genre-based, see endpoint 'related_carousel_by_genre') and intersect results with slugs already present in local DB.",
+      "cost": "trivial (one more verified-working GET call)",
+      "caveat": "Metacritic recommends from its entire catalog (hundreds of thousands of titles), so intersection with a small, freshly-started local DB (tens-hundreds of games after one day) may frequently be empty",
+      "verified_live": true
+    }
+  ],
+  "risks": [
+    "Non-deterministic tie-break in -releaseDate sort makes page/offset-based pagination unreliable across separate runs; must dedup by stable game id, not by offset/page number.",
+    "No verified working method to fetch a third-party YouTube video's transcript from a typical cloud server IP: official API cannot do it at all (OAuth+owner-only), unofficial scraping returned an empty body in a live test from this environment and is documented to be blocked by ASN on AWS/GCP/Azure/Hetzner/DigitalOcean.",
+    "YouTube Data API v3 default quota (100 search.list calls/day) is incompatible at face value with processing 20 games/hour if 1 search is issued per game.",
+    "backend.metacritic.com is an undocumented private API with no published rate limit or SLA; behavior under sustained production load was not tested.",
+    "www.metacritic.com blocks specific literal User-Agent strings (python-requests, Java/) via Cloudflare WAF; trivially fixed today but could be tightened without notice, unlike backend.metacritic.com which showed no such blocking in any test performed.",
+    "stats endpoint reviewCount (all ratings) can exceed reviews-list totalResults (text-only reviews) — summarization pipelines must not assume these numbers match.",
+    "Site is Nuxt 3, not Next.js as assumed in the task; __NEXT_DATA__ does not exist, only __NUXT_DATA__ in the devalue flattened-array format."
+  ],
+  "top_5_facts_for_architecture": [
+    "An open, unauthenticated, non-rate-limited-in-testing JSON API exists at backend.metacritic.com and should be the primary data source instead of HTML/Nuxt scraping.",
+    "Metascore per platform comes for free with the single product call; Userscore per platform requires one additional call per platform — external call count scales with number of platforms per game.",
+    "The official YouTube API can never return a third party's caption text (OAuth+owner-only restriction); the only path to a transcript is unofficial scraping/yt-dlp, which is documented and empirically observed here to be unreliable specifically on cloud/datacenter IPs — this feature should be designed as best-effort/degradable, not guaranteed.",
+    "New-releases pagination is not idempotent across separate hourly runs (no stable sort tie-break) — dedup must key off game id, not offset/page number.",
+    "Ready-made sentiment-bucketed review 'summary' endpoints (default/positive/negative/neutral quotes) exist and could reduce the review-summarization pipeline's need to paginate and bucket the full review list manually."
+  ]
+}
