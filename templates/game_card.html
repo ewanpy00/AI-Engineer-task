@@ -1,0 +1,244 @@
+{% extends "base.html" %}
+{% block title %}{{ game.title }} — Metacritic digest{% endblock %}
+{% block content %}
+  <article class="game" data-slug="{{ game.slug }}">
+    <div class="head">
+      <div class="cover">
+        {% if game.cover_path %}
+          <img src="{{ cover_url(game.cover_path) }}" alt="{{ game.title }}"
+               width="226" height="332" decoding="async">
+        {% else %}
+          <span class="cover-empty muted">без обложки</span>
+        {% endif %}
+      </div>
+
+      <div class="meta">
+        <h1>{{ game.title }}</h1>
+
+        <dl class="facts">
+          {% if game.developer %}<dt>Разработчик</dt><dd>{{ game.developer }}</dd>{% endif %}
+          {% if game.publisher %}<dt>Издатель</dt><dd>{{ game.publisher }}</dd>{% endif %}
+          {% if game.release_date %}<dt>Релиз</dt><dd>{{ game.release_date.strftime('%d.%m.%Y') }}</dd>{% endif %}
+          {% if game.genres_cache %}<dt>Жанры</dt><dd>{{ game.genres_cache|join(', ') }}</dd>{% endif %}
+          {% if game.esrb_rating %}<dt>ESRB</dt><dd>{{ game.esrb_rating }}</dd>{% endif %}
+        </dl>
+
+        {% if game.description %}
+          <p class="description">{{ game.description }}</p>
+        {% endif %}
+      </div>
+    </div>
+
+    <section id="platforms">
+      <h2>Платформы и оценки</h2>
+      {% if game.platforms %}
+        <table class="platforms">
+          <thead>
+            <tr><th>Платформа</th><th>Metascore</th><th>Userscore</th></tr>
+          </thead>
+          <tbody>
+            {% for p in game.platforms %}
+              <tr{% if p.is_lead %} class="lead"{% endif %}>
+                <td>
+                  {{ p.platform_name }}
+                  {% if p.is_lead %}<span class="tag muted">ведущая</span>{% endif %}
+                </td>
+                <td>
+                  {% if p.metascore is not none %}
+                    <span class="score metascore">{{ p.metascore }}</span>
+                    <span class="muted count">
+                      {{ p.metascore_count or 0 }} крит.{% if p.metascore_sentiment %} · {{ p.metascore_sentiment }}{% endif %}
+                    </span>
+                  {% else %}
+                    <span class="muted">—</span>
+                  {% endif %}
+                </td>
+                <td>
+                  {% if p.userscore is not none %}
+                    <span class="score userscore">{{ '%.1f'|format(p.userscore) }}</span>
+                    <span class="muted count">
+                      {{ p.userscore_count or 0 }} польз.{% if p.userscore_sentiment %} · {{ p.userscore_sentiment }}{% endif %}
+                    </span>
+                  {% else %}
+                    <span class="muted">—</span>
+                  {% endif %}
+                </td>
+              </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      {% else %}
+        <p class="muted">Платформы не заполнены.</p>
+      {% endif %}
+    </section>
+
+    {% if game.video_url %}
+      <section id="video">
+        <h2>Видео</h2>
+        {# Плеер Metacritic (jwplayer) отдаётся без X-Frame-Options, встраивается
+           напрямую. Ссылка рядом — на случай, если у зрителя блокируются iframe. #}
+        <div class="video"><iframe src="{{ game.video_url }}" allowfullscreen
+                                   referrerpolicy="no-referrer" title="Трейлер {{ game.title }}"></iframe></div>
+        <p class="muted"><a href="{{ game.video_url }}" target="_blank" rel="noopener">Открыть видео отдельно</a></p>
+      </section>
+    {% endif %}
+
+    <section id="review-summaries">
+      <h2>Что говорят об игре</h2>
+      {# Резюме собирает LLM на обходе каталога (T-30); здесь только чтение из
+         БД. Блок рисуется всегда: «резюме ещё нет» — тоже состояние, и оно
+         должно быть видно, а не выглядеть как отсутствующая секция. #}
+      <div class="summaries">
+        {% for audience, heading in [('critic', 'Критики'), ('user', 'Пользователи')] %}
+          {% set s = summaries.get(audience) %}
+          <div class="summary" data-audience="{{ audience }}">
+            <h3>{{ heading }}</h3>
+            {% if s and s.status == 'ok' %}
+              {% if s.liked %}
+                <p class="verdict good">Нравится</p>
+                <ul class="liked">{% for point in s.liked %}<li>{{ point }}</li>{% endfor %}</ul>
+              {% endif %}
+              {% if s.disliked %}
+                <p class="verdict bad">Не нравится</p>
+                <ul class="disliked">{% for point in s.disliked %}<li>{{ point }}</li>{% endfor %}</ul>
+              {% else %}
+                <p class="muted">Заметных претензий в отзывах нет.</p>
+              {% endif %}
+              {% if s.tldr %}<p class="tldr">{{ s.tldr }}</p>{% endif %}
+              <p class="muted origin">
+                {{ 'Рецензий' if audience == 'critic' else 'Отзывов' }}: {{ s.quotes_count }}
+                {%- if s.generated_at %} · собрано {{ s.generated_at.strftime('%d.%m.%Y') }}{% endif %}
+              </p>
+            {% elif s and s.status == 'no_data' %}
+              <p class="muted">Отзывов пока нет.</p>
+            {% else %}
+              {# llm_failed или строки ещё нет: пользователю важно одно — что
+                 это временно. Текст ошибки на экран не выносим (design §5.5). #}
+              <p class="muted">Резюме не готово, обновится при следующем обходе.</p>
+            {% endif %}
+          </div>
+        {% endfor %}
+      </div>
+    </section>
+
+    {# Похожие игры (T-33/T-34): только то, что уже есть в своей базе. Пустой
+       результат — не состояние, а отсутствие блока: у игры может не быть жанров,
+       а на молодой базе пересечений может не найтись вовсе (design §3.5). #}
+    {% if similar %}
+      <section id="similar-games">
+        <h2>Похожие игры</h2>
+        <ul class="similar">
+          {% for other in similar %}
+            <li>
+              <a class="cover" href="/game/{{ other.slug }}">
+                {% if other.cover_path %}
+                  <img src="{{ cover_url(other.cover_path) }}" alt="{{ other.title }}"
+                       width="113" height="166" loading="lazy" decoding="async">
+                {% else %}
+                  <span class="cover-empty muted">без обложки</span>
+                {% endif %}
+              </a>
+              <a class="title" href="/game/{{ other.slug }}">{{ other.title }}</a>
+              <p class="scores">
+                {% if other.best_metascore is not none %}
+                  <span class="score metascore" title="Metascore">{{ other.best_metascore }}</span>
+                {% endif %}
+                {% set n = other.shared_genres %}
+                <span class="muted">{{ n }}
+                  {%- if n % 10 == 1 and n % 100 != 11 %} общий жанр
+                  {%- elif 2 <= n % 10 <= 4 and not 12 <= n % 100 <= 14 %} общих жанра
+                  {%- else %} общих жанров{% endif %}</span>
+              </p>
+            </li>
+          {% endfor %}
+        </ul>
+      </section>
+    {% endif %}
+
+    {# Летсплей (доп. часть 1, T-44). Блок отдельный от «Видео» выше: там
+       официальный трейлер Metacritic, здесь — прохождение с YouTube и
+       заключение по его пересказу (OQ-10).
+
+       Рисуется только при `status='ok'`: у `not_found`/`service_error` нет ни
+       заключения, ни ролика, а «летсплей не нашёлся» — не та новость, ради
+       которой стоит занимать место в карточке. Фича best-effort, и карточка без
+       неё — нормальное состояние (ADR-8). #}
+    {% if letsplay and letsplay.status == 'ok' %}
+      <section id="letsplay">
+        <h2>Летсплей</h2>
+        {% if letsplay.conclusion %}
+          <p class="conclusion">{{ letsplay.conclusion }}</p>
+        {% endif %}
+        <p class="source">
+          <a href="{{ letsplay.video_url }}" target="_blank" rel="noopener nofollow">
+            {{ letsplay.video_title or 'Смотреть на YouTube' }}</a>
+          <span class="muted">
+            {%- if letsplay.channel %} · {{ letsplay.channel }}{% endif %}
+            {%- if letsplay.view_count %} · {{ letsplay.view_count|views }} просмотров{% endif %}
+          </span>
+        </p>
+        {% if letsplay.retelling %}
+          {# Пересказ длинный и машинный — по умолчанию свёрнут: в карточке
+             главное заключение, а пересказ нужен, чтобы его проверить. #}
+          <details class="retelling">
+            <summary>Пересказ ролика</summary>
+            <div class="retelling-text">{{ letsplay.retelling }}</div>
+          </details>
+        {% endif %}
+      </section>
+    {% endif %}
+
+    <p class="muted back"><a href="/games">← ко всем играм</a></p>
+  </article>
+
+  <style>
+    .game .head { display:flex; gap:24px; flex-wrap:wrap; }
+    .game .cover { flex:0 0 226px; aspect-ratio:226/332; background:var(--line);
+                   border:1px solid var(--line); border-radius:10px; overflow:hidden; }
+    .game .cover img { width:100%; height:100%; object-fit:cover; display:block; }
+    .cover-empty { display:flex; height:100%; align-items:center; justify-content:center; font-size:13px; }
+    .game .meta { flex:1 1 380px; min-width:0; }
+    .game h1 { margin:0 0 12px; font-size:26px; line-height:1.2; }
+    .game h2 { font-size:16px; margin:28px 0 10px; }
+    .facts { display:grid; grid-template-columns:max-content 1fr; gap:4px 14px; margin:0 0 16px; font-size:14px; }
+    .facts dt { color:var(--muted); }
+    .facts dd { margin:0; }
+    .description { margin:0; white-space:pre-line; }
+    table.platforms { border-collapse:collapse; width:100%; font-size:14px; }
+    table.platforms th, table.platforms td { text-align:left; padding:8px 10px; border-bottom:1px solid var(--line); }
+    table.platforms th { color:var(--muted); font-weight:500; }
+    table.platforms tr.lead td:first-child { font-weight:600; }
+    .tag { font-size:12px; margin-left:6px; }
+    .count { font-size:12px; margin-left:6px; }
+    .score { display:inline-block; min-width:30px; padding:2px 6px; border-radius:5px;
+             font-weight:600; text-align:center; color:#111; }
+    .metascore { background:#ffcc33; }
+    .userscore { background:#7ec8a0; }
+    .summaries { display:flex; gap:24px; flex-wrap:wrap; }
+    .summary { flex:1 1 300px; min-width:0; padding:14px 16px; border:1px solid var(--line); border-radius:10px; }
+    .summary h3 { margin:0 0 10px; font-size:15px; }
+    .summary ul { margin:0 0 12px; padding-left:20px; font-size:14px; }
+    .summary li { margin-bottom:4px; }
+    .verdict { margin:0 0 6px; font-size:13px; font-weight:600; }
+    .verdict.good { color:#2f7d55; }
+    .verdict.bad { color:#a33; }
+    .tldr { margin:12px 0 0; font-size:14px; padding-top:10px; border-top:1px solid var(--line); }
+    .summary .origin { margin:10px 0 0; font-size:12px; }
+    /* .game .cover задан под обложку карточки — в списке похожих её размер свой. */
+    .similar { display:flex; gap:16px; flex-wrap:wrap; list-style:none; margin:0; padding:0; }
+    .similar li { flex:0 0 113px; }
+    .similar .cover { display:block; flex:none; width:113px; aspect-ratio:226/332; margin-bottom:8px; }
+    .similar .title { display:block; font-size:14px; font-weight:600; line-height:1.3; }
+    .similar .scores { margin:6px 0 0; font-size:12px; }
+    .similar .scores .muted { display:block; margin-top:4px; }
+    #letsplay .conclusion { margin:0; max-width:720px; white-space:pre-line; }
+    #letsplay .source { margin:10px 0 0; font-size:14px; }
+    .retelling { margin-top:12px; max-width:720px; font-size:14px; }
+    .retelling summary { cursor:pointer; color:var(--muted); }
+    .retelling-text { margin-top:8px; padding:12px 14px; border:1px solid var(--line);
+                      border-radius:10px; white-space:pre-line; }
+    .video { position:relative; aspect-ratio:16/9; max-width:720px; background:#000; border-radius:10px; overflow:hidden; }
+    .video iframe { position:absolute; inset:0; width:100%; height:100%; border:0; }
+    .back { margin-top:32px; }
+  </style>
+{% endblock %}

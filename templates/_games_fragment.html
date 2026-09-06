@@ -1,0 +1,71 @@
+{# Список игр без layout: рендерится и внутри страницы, и как ответ HTMX
+   на /games/fragment. Общий контекст собирает routes_games._list_context. #}
+{% macro page_qs(target_page) -%}
+  {{- query_string(
+        q=q or None,
+        platform=platform or None,
+        sort=(none if sort == 'new' else sort),
+        page=(none if target_page == 1 else target_page)) -}}
+{%- endmacro %}
+
+{% if not games %}
+  {% if q or platform %}
+    <p class="empty muted">Ничего не найдено. Попробуйте изменить запрос или снять фильтр.</p>
+  {% else %}
+    <p class="empty muted">Игр пока нет — запустите обработку через <code>POST /admin/run</code>.</p>
+  {% endif %}
+{% else %}
+  <p class="muted total">Найдено: {{ total }}{% if pages > 1 %} · страница {{ page }} из {{ pages }}{% endif %}</p>
+  <ul class="cards">
+    {% for game in games %}
+      <li class="card">
+        <a class="cover" href="/game/{{ game.slug }}">
+          {% if game.cover_path %}
+            {# lazy + async: 20 оригиналов по ~200 КБ, грузим по мере прокрутки
+               и не блокируем декодированием отрисовку остальной страницы.
+               Resize-вариант CDN требует подписи, построить её нельзя (research §2.5). #}
+            <img src="{{ cover_url(game.cover_path) }}" alt="{{ game.title }}"
+                 width="226" height="332" loading="lazy" decoding="async">
+          {% else %}
+            <span class="cover-empty muted">без обложки</span>
+          {% endif %}
+        </a>
+        <div class="body">
+          <a class="title" href="/game/{{ game.slug }}">{{ game.title }}</a>
+          {% if game.platforms %}
+            <p class="muted platforms">{{ game.platforms|join(', ') }}</p>
+          {% endif %}
+          <p class="scores">
+            {% if game.best_metascore is not none %}
+              <span class="score metascore" title="Metascore">{{ game.best_metascore }}</span>
+            {% endif %}
+            {% if game.best_userscore is not none %}
+              <span class="score userscore" title="Userscore">{{ '%.1f'|format(game.best_userscore) }}</span>
+            {% endif %}
+            {% if game.best_metascore is none and game.best_userscore is none %}
+              <span class="muted">без оценок</span>
+            {% endif %}
+          </p>
+        </div>
+      </li>
+    {% endfor %}
+  </ul>
+
+  {% if pages > 1 %}
+    {# Ссылки несут те же q/platform/sort, поэтому пагинация не сбрасывает фильтры.
+       href оставлен рабочим и без htmx; hx-get подменяет только этот блок. #}
+    <nav class="pager">
+      {% for target in [page - 1, page + 1] %}
+        {% if 1 <= target <= pages %}
+          <a href="/games{{ page_qs(target) }}"
+             hx-get="/games/fragment{{ page_qs(target) }}"
+             hx-target="#games-results" hx-swap="innerHTML">
+            {{ '← назад' if loop.first else 'вперёд →' }}
+          </a>
+        {% else %}
+          <span class="muted">{{ '← назад' if loop.first else 'вперёд →' }}</span>
+        {% endif %}
+      {% endfor %}
+    </nav>
+  {% endif %}
+{% endif %}

@@ -1,0 +1,28 @@
+{# Одна строка ленты. Тот же шаблон отдаёт SSE-кадр `feed`, поэтому события,
+   пришедшие до открытия страницы (из буфера шины), и события после неё
+   выглядят одинаково. #}
+{% set p = event.payload %}
+<li class="ev ev-{{ event.kind }}">
+  <time>{{ event.ts.strftime('%H:%M:%S') }}</time>
+  {%- if event.kind == 'run_started' %}
+    <b>Заход #{{ p.run_id }} начат</b> — {{ 'вручную' if p.trigger == 'manual' else 'по расписанию' }}
+  {%- elif event.kind == 'counters' %}
+    Батч выбран: {{ p.claimed }} игр, фаза {{ p.phase }}, страниц {{ p.pages }}
+  {%- elif event.kind == 'game_started' %}
+    <span class="mark">→</span> {{ p.title or p.slug }}
+  {%- elif event.kind == 'game_done' %}
+    <span class="mark ok">✓</span> {{ p.title or p.slug }}
+  {%- elif event.kind == 'game_failed' %}
+    <span class="mark fail">✗</span> {{ p.title or p.slug }} — {{ p.error }}
+  {%- elif event.kind == 'llm_call' %}
+    <span class="mark">≈</span> резюме: вызовов {{ p.calls }}{% if p.failures %}, неудачных {{ p.failures }}{% endif %} — {{ p.title or p.slug }}
+  {%- elif event.kind == 'letsplay' %}
+    <span class="mark">▶</span> летсплей: {{ p.status }} — {{ p.title or p.slug }}
+  {%- elif event.kind == 'run_finished' %}
+    <b>Заход {% if p.run_id %}#{{ p.run_id }} {% endif %}завершён</b> — {{ p.status }}
+    {%- if p.status not in ('skipped_locked',) %}, ok {{ p.ok }}, ошибок {{ p.failed }}{% endif %}
+    {%- if p.error %} <span class="fail">{{ p.error }}</span>{% endif %}
+  {%- else %}
+    {{ event.kind }} {{ p }}
+  {%- endif %}
+</li>
