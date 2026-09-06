@@ -12,7 +12,7 @@ hooks:
         - type: command
           command: "./scripts/only-docs.sh"
 initialPrompt: |
-  Прочитай docs/task.md, docs/00-research.md, docs/00-research.json.
+  Прочитай docs/11-decisions.md, docs/task.md, docs/00-research.md, docs/00-research.json.
   Напиши docs/10-design.md со следующими разделами:
 
   1. Контекст и границы: что делаем, что сознательно НЕ делаем.
