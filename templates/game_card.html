@@ -121,8 +121,41 @@
       </div>
     </section>
 
-    {# Места под блоки следующих срезов: добавляются содержимым, без переверстки. #}
-    <section id="similar-games" data-block="T-34"></section>
+    {# Похожие игры (T-33/T-34): только то, что уже есть в своей базе. Пустой
+       результат — не состояние, а отсутствие блока: у игры может не быть жанров,
+       а на молодой базе пересечений может не найтись вовсе (design §3.5). #}
+    {% if similar %}
+      <section id="similar-games">
+        <h2>Похожие игры</h2>
+        <ul class="similar">
+          {% for other in similar %}
+            <li>
+              <a class="cover" href="/game/{{ other.slug }}">
+                {% if other.cover_path %}
+                  <img src="{{ cover_url(other.cover_path) }}" alt="{{ other.title }}"
+                       width="113" height="166" loading="lazy" decoding="async">
+                {% else %}
+                  <span class="cover-empty muted">без обложки</span>
+                {% endif %}
+              </a>
+              <a class="title" href="/game/{{ other.slug }}">{{ other.title }}</a>
+              <p class="scores">
+                {% if other.best_metascore is not none %}
+                  <span class="score metascore" title="Metascore">{{ other.best_metascore }}</span>
+                {% endif %}
+                {% set n = other.shared_genres %}
+                <span class="muted">{{ n }}
+                  {%- if n % 10 == 1 and n % 100 != 11 %} общий жанр
+                  {%- elif 2 <= n % 10 <= 4 and not 12 <= n % 100 <= 14 %} общих жанра
+                  {%- else %} общих жанров{% endif %}</span>
+              </p>
+            </li>
+          {% endfor %}
+        </ul>
+      </section>
+    {% endif %}
+
+    {# Место под блок следующего среза: добавляется содержимым, без переверстки. #}
     <section id="letsplay" data-block="T-46"></section>
 
     <p class="muted back"><a href="/games">← ко всем играм</a></p>
@@ -161,6 +194,13 @@
     .verdict.bad { color:#a33; }
     .tldr { margin:12px 0 0; font-size:14px; padding-top:10px; border-top:1px solid var(--line); }
     .summary .origin { margin:10px 0 0; font-size:12px; }
+    /* .game .cover задан под обложку карточки — в списке похожих её размер свой. */
+    .similar { display:flex; gap:16px; flex-wrap:wrap; list-style:none; margin:0; padding:0; }
+    .similar li { flex:0 0 113px; }
+    .similar .cover { display:block; flex:none; width:113px; aspect-ratio:226/332; margin-bottom:8px; }
+    .similar .title { display:block; font-size:14px; font-weight:600; line-height:1.3; }
+    .similar .scores { margin:6px 0 0; font-size:12px; }
+    .similar .scores .muted { display:block; margin-top:4px; }
     .video { position:relative; aspect-ratio:16/9; max-width:720px; background:#000; border-radius:10px; overflow:hidden; }
     .video iframe { position:absolute; inset:0; width:100%; height:100%; border:0; }
     .back { margin-top:32px; }

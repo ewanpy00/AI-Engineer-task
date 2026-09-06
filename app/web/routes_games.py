@@ -7,6 +7,7 @@ from typing import Any
 from fastapi import APIRouter, HTTPException, Query, Request
 from fastapi.responses import RedirectResponse
 
+from app.similar import list_similar
 from app.web.repo_games import (
     DEFAULT_SORT,
     get_game,
@@ -91,11 +92,15 @@ async def game_card(request: Request, slug: str):
     game = await get_game(slug)
     if game is None:
         raise HTTPException(status_code=404, detail="game not found")
-    # Похожие игры (T-34) и летсплей (T-46) — отдельные блоки той же страницы,
-    # места под них размечены в шаблоне. Резюме читается из БД: модель в
-    # HTTP-запросе не вызывается никогда (design §5.1).
+    # Летсплей (T-46) — отдельный блок той же страницы, место под него размечено
+    # в шаблоне. Резюме и похожие читаются из БД: модель в HTTP-запросе не
+    # вызывается никогда (design §5.1), похожие считаются SQL-запросом (ADR-4).
     return templates.TemplateResponse(
         request,
         "game_card.html",
-        {"game": game, "summaries": await get_review_summaries(game["id"])},
+        {
+            "game": game,
+            "summaries": await get_review_summaries(game["id"]),
+            "similar": await list_similar(game["id"]),
+        },
     )
