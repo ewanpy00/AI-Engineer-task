@@ -6,15 +6,36 @@
 (research §5, ADR-8). 300.ya.ru принимает ссылку и отдаёт готовый пересказ,
 это единственный проверенный владельцем вручную вариант (11-decisions.md).
 
-ASSUMPTION (OQ-2, зафиксирован в задаче T-42). Research-стадия 300.ya.ru не
-покрывала: сервис неофициальный и публичной документации у него нет. Не
-верифицированы ни путь эндпоинта, ни имена полей запроса и ответа, ни коды
-ошибок, ни имя куки авторизации — всё, что ниже помечено `ASSUMPTION`, взято
-по наблюдаемому поведению веб-версии и подлежит правке по факту первого
-живого прогона. Правка эта локальна: контракт `RetellingService` из design
-§4.5 (`retell(video_url) -> str`, `RetellingUnavailable` при любой беде) не
-меняется, и весь остальной код видит только его (design §9, «формат API
-300.ya.ru изолирован интерфейсом»).
+Контракт сервиса (проверен вживую 07.09.2026, первая реализация была написана
+по догадке и получала 404 на каждой игре). Публичной документации у 300.ya.ru
+нет; форма запроса взята из открытой реализации `gniloyprolaps/ya300`
+(`prlps_ya300/utils.py`) и подтверждена запросами с реальной кукой:
+
+  * `POST https://300.ya.ru/api/generation`, тело JSON;
+  * запуск генерации — `{"video_url": …, "type": "video"}`. **Поле `type`
+    обязательно**: без него сервис отвечает `404 {"message":"Not Found"}` при
+    любых заголовках — ровно на этом и не работала первая версия;
+  * продолжение — `{"session_id": …, "type": "video"}`, где `session_id` из
+    первого ответа; ссылку на ролик повторять не нужно;
+  * авторизация — кука `Session_id`; её одной достаточно (companion-куку
+    `yandex_csyr` из референсной реализации сервис не требует, проверено).
+    Протухшая кука или её отсутствие — `403 {"message":"Not Authorized"}`;
+  * `status_code`: 1 — генерация идёт, 0 — готово, больше — отказ (тогда же
+    приходит `error_code`). Пауза между опросами — `poll_interval_ms`,
+    наблюдалось 500 мс, генерация двухчасового ролика занимала ~5 секунд;
+  * текст лежит в `keypoints[].content` и `keypoints[].theses[].content`.
+    Признак готовности — именно `status_code == 0`, а не `sharing_url`: у
+    видео он оставался пустым и после завершения (референсная реализация ждёт
+    его и потому на видео зависает). При `status_code == 1` keypoints тоже
+    приходят, но частично — брать их рано.
+
+Кеша у сервиса нет: повторный запрос того же ролика начинает генерацию заново
+(`summary_age_seconds = 0`), поэтому повторов не делаем и на стороне пайплайна.
+
+Контракт `RetellingService` из design §4.5 (`retell(video_url) -> str`,
+`RetellingUnavailable` при любой беде) при этом не изменился: весь остальной
+код видит только его (design §9, «формат API 300.ya.ru изолирован
+интерфейсом»), и правка целиком уместилась в этот модуль.
 
 Свойства, на которые опирается пайплайн (T-44):
   * одна попытка, без внутренних ретраев — кука протухает целиком, а не
@@ -37,17 +58,16 @@ from app.config import Settings, get_settings
 
 log = logging.getLogger(__name__)
 
-# ASSUMPTION: путь и форма запроса/ответа не верифицированы (см. модульный
-# docstring). Это единственное место, где они упомянуты.
 GENERATION_PATH = "/api/generation"
 SESSION_COOKIE = "Session_id"
+# Обязательное поле тела: без него — 404. Пересказываем только ролики,
+# статьи (`"article"`) сервису тоже доступны, но нам не нужны.
+CONTENT_TYPE = "video"
 
-# ASSUMPTION: `status_code` в ответе — 0 «готово», 1 «ещё генерируется»,
-# остальное — отказ.
 STATUS_DONE = 0
 STATUS_IN_PROGRESS = 1
 
-POLL_INTERVAL_S = 1.5      # ASSUMPTION: `poll_interval_ms` из ответа, если он есть
+POLL_INTERVAL_S = 0.5      # значение по умолчанию; сервис присылает своё
 POLL_INTERVAL_MAX_S = 10.0
 BODY_EXCERPT_LIMIT = 300
 # Пересказ уходит в модель целиком, а его длину сервис не гарантирует.
@@ -88,11 +108,11 @@ def _excerpt(response: httpx.Response) -> str:
 def extract_retelling(payload: dict[str, Any]) -> str:
     """Собирает текст пересказа из ответа сервиса.
 
-    ASSUMPTION: пересказ приходит списком тезисов (`thesis`), сгруппированных
-    по смысловым блокам (`keypoints`), у каждого — поле `content`. Разбор
-    намеренно терпимый: любая из форм даёт текст, а неизвестная — пустую
-    строку, которую вызывающий превратит в `RetellingUnavailable`, а не в
-    пустой пересказ в БД.
+    У видео это `keypoints` — смысловые блоки с `content` и списком `theses`,
+    у каждого тезиса тоже `content` (проверено на живых ответах). Плоский
+    `thesis` для видео приходит пустым, но у статей он основной, поэтому
+    разбираются обе формы. Неизвестная форма даёт пустую строку — вызывающий
+    превратит её в `RetellingUnavailable`, а не в пустой пересказ в БД.
     """
     parts: list[str] = []
     for keypoint in payload.get("keypoints") or []:
@@ -154,20 +174,26 @@ class Ya300RetellingService:
             raise RetellingUnavailable("no_session", "YA300_SESSION_ID не задан")
 
         deadline = time.monotonic() + self._settings.ya300_timeout_s
-        payload: dict[str, Any] = {"video_url": video_url}
-        while True:
-            data = await self._post(payload, deadline)
-            status = data.get("status_code")
-            if status == STATUS_DONE:
-                break
-            if status != STATUS_IN_PROGRESS:
-                raise RetellingUnavailable(
-                    "rejected", f"status_code={status} {str(data.get('message') or '')[:120]}"
-                )
-            # ASSUMPTION: продолжение генерации запрашивается тем же вызовом с
-            # `session_id` из ответа; без него сервис начал бы всё заново.
-            payload = {"video_url": video_url, "session_id": data.get("session_id")}
+        data = await self._post({"video_url": video_url, "type": CONTENT_TYPE}, deadline)
+        session = data.get("session_id")
+
+        while data.get("status_code") == STATUS_IN_PROGRESS:
+            if not session:
+                # Без `session_id` продолжать нечем, а повторный запуск по
+                # ссылке начал бы генерацию заново и зациклил нас.
+                raise RetellingUnavailable("rejected", "сервис не выдал session_id")
             await self._wait(data, deadline)
+            # Ссылка на ролик в продолжении не нужна и не передаётся: сервис
+            # держит её за `session_id`.
+            data = await self._post({"session_id": session, "type": CONTENT_TYPE}, deadline)
+
+        status, error_code = data.get("status_code"), data.get("error_code")
+        if status != STATUS_DONE or error_code:
+            raise RetellingUnavailable(
+                "rejected",
+                f"status_code={status} error_code={error_code} "
+                f"{str(data.get('message') or '')[:120]}".strip(),
+            )
 
         retelling = extract_retelling(data)
         if not retelling:
@@ -179,9 +205,7 @@ class Ya300RetellingService:
         if left <= 0:
             raise RetellingUnavailable("timeout", "истёк общий дедлайн вызова")
         try:
-            response = await self._http().post(
-                GENERATION_PATH, json=payload, timeout=left
-            )
+            response = await self._http().post(GENERATION_PATH, json=payload, timeout=left)
         except httpx.TimeoutException as exc:
             raise RetellingUnavailable("timeout", str(exc)) from exc
         except httpx.HTTPError as exc:
