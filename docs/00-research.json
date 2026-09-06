@@ -2,15 +2,32 @@
   "stage": "research",
   "checked_at": "2026-09-06T08:23:50Z",
   "checked_from_environment": "local developer machine (not a cloud/datacenter IP) — matters for the youtube section",
-  "tools_used": ["curl 8.x", "node 25 + npm:devalue", "yt-dlp 2026.06.09", "deno 2.9.0"],
+  "tools_used": [
+    "curl 8.x",
+    "node 25 + npm:devalue",
+    "yt-dlp 2026.06.09",
+    "deno 2.9.0"
+  ],
   "site_stack": {
     "framework": "Nuxt 3 (Vue) SSR",
     "note": "task assumed Next.js (__NEXT_DATA__); that is WRONG. Real hydration payload is <script id=\"__NUXT_DATA__\"> in the 'devalue' flattened-array format, not plain JSON.",
     "verified_by": "curl https://www.metacritic.com/game/ ; grep for __NEXT_DATA__ (absent) vs __NUXT_DATA__ (present)",
     "nuxt_data_parsing": {
       "method": "npm package 'devalue', parse(rawScriptText, identityRevivers)",
-      "identity_revivers_needed": ["ShallowReactive", "ShallowRef", "Reactive", "Ref", "EmptyRef", "EmptyShallowRef"],
-      "verified_on_pages": ["/game/", "/browse/game/all/all/all-time/new/", "/browse/game/all/all/all-time/new/2/", "/game/onimusha-way-of-the-sword/"]
+      "identity_revivers_needed": [
+        "ShallowReactive",
+        "ShallowRef",
+        "Reactive",
+        "Ref",
+        "EmptyRef",
+        "EmptyShallowRef"
+      ],
+      "verified_on_pages": [
+        "/game/",
+        "/browse/game/all/all/all-time/new/",
+        "/browse/game/all/all/all-time/new/2/",
+        "/game/onimusha-way-of-the-sword/"
+      ]
     },
     "nuxt_data_keys_of_interest": {
       "/game/": "data['loadPage:door:games-door-global:'].components[] -> find item where meta.componentName === 'new-releases-carousel'",
@@ -34,15 +51,55 @@
     "name": "www.metacritic.com HTML pages",
     "anti_bot": {
       "type": "Cloudflare WAF, string-based User-Agent blocklist (not a JS challenge, not TLS-fingerprint based as far as tested)",
-      "blocked_user_agents_confirmed": ["python-requests/2.31.0", "python-requests/2.28.1", "Java/17.0.1"],
-      "blocked_response": {"status": 403, "content_type": "text/plain", "body": "You are not allowed to access this resource"},
-      "allowed_user_agents_confirmed": ["curl/8.x default", "empty UA", "Mozilla/5.0 ... Chrome/120", "Googlebot/2.1", "node-fetch", "Scrapy/2.11", "Go-http-client/1.1", "okhttp/4.9.0"],
+      "blocked_user_agents_confirmed": [
+        "python-requests/2.31.0",
+        "python-requests/2.28.1",
+        "Java/17.0.1"
+      ],
+      "blocked_response": {
+        "status": 403,
+        "content_type": "text/plain",
+        "body": "You are not allowed to access this resource"
+      },
+      "allowed_user_agents_confirmed": [
+        "curl/8.x default",
+        "empty UA",
+        "Mozilla/5.0 ... Chrome/120",
+        "Googlebot/2.1",
+        "node-fetch",
+        "Scrapy/2.11",
+        "Go-http-client/1.1",
+        "okhttp/4.9.0"
+      ],
       "recommendation_fact_only": "any UA other than the specific blocked library-default strings passes; browser spoofing is not required, just avoid literal 'python-requests'/'Java/' UA strings"
     },
     "robots_txt": {
       "fetched": true,
-      "disallow_named_bots": ["AhrefsBot", "AwarioRssBot", "AwarioSmartBot", "barkrowler", "BLEXBot", "CCBot", "DataForSeoBot", "dotbot", "GPTBot", "OAI-SearchBot", "ImagesiftBot", "MJ12bot", "SemrushBot", "TurnitinBot"],
-      "disallow_generic_ua": ["/search", "/signup", "/login", "/user", "/jl/", "/8264/", "/7336/"],
+      "disallow_named_bots": [
+        "AhrefsBot",
+        "AwarioRssBot",
+        "AwarioSmartBot",
+        "barkrowler",
+        "BLEXBot",
+        "CCBot",
+        "DataForSeoBot",
+        "dotbot",
+        "GPTBot",
+        "OAI-SearchBot",
+        "ImagesiftBot",
+        "MJ12bot",
+        "SemrushBot",
+        "TurnitinBot"
+      ],
+      "disallow_generic_ua": [
+        "/search",
+        "/signup",
+        "/login",
+        "/user",
+        "/jl/",
+        "/8264/",
+        "/7336/"
+      ],
       "game_pages_disallowed": false,
       "note": "robots.txt fact only, not a legal/ToS opinion"
     }
@@ -107,7 +164,9 @@
       "url": "https://backend.metacritic.com/reviews/metacritic/critic/games/{slug}/platform/{platform_slug}/stats/web",
       "url_without_platform_returns": "lead platform only (isLeadPlatform:true), ?platform=xxx query param is IGNORED — platform must be a path segment",
       "verified": true,
-      "response_shape": {"data.item": "{id,max:100,score,reviewCount,positiveCount,neutralCount,negativeCount,sentiment,url}"}
+      "response_shape": {
+        "data.item": "{id,max:100,score,reviewCount,positiveCount,neutralCount,negativeCount,sentiment,url}"
+      }
     },
     {
       "id": "user_score_stats",
@@ -115,7 +174,9 @@
       "method": "GET",
       "url": "https://backend.metacritic.com/reviews/metacritic/user/games/{slug}/platform/{platform_slug}/stats/web",
       "verified": true,
-      "response_shape": {"data.item": "{id,max:10,score,reviewCount,positiveCount,neutralCount,negativeCount,sentiment,url}"},
+      "response_shape": {
+        "data.item": "{id,max:10,score,reviewCount,positiveCount,neutralCount,negativeCount,sentiment,url}"
+      },
       "notes": "platform_slug values come from product.data.item.platforms[].slug, e.g. pc, playstation-5, xbox-series-x, nintendo-switch-2"
     },
     {
@@ -127,10 +188,24 @@
       "pagination": {
         "limit_param_honored": false,
         "actual_hard_page_size": 10,
-        "verified_with_limits_tested": [10, 20, 50, 100],
+        "verified_with_limits_tested": [
+          10,
+          20,
+          50,
+          100
+        ],
         "total_field": "data.totalResults"
       },
-      "item_fields": ["quote", "score(0-100)", "url", "date", "author", "publicationName", "publicationSlug", "platform"]
+      "item_fields": [
+        "quote",
+        "score(0-100)",
+        "url",
+        "date",
+        "author",
+        "publicationName",
+        "publicationSlug",
+        "platform"
+      ]
     },
     {
       "id": "user_reviews_list",
@@ -140,12 +215,26 @@
       "verified": true,
       "pagination": {
         "limit_param_honored": true,
-        "verified_with_limits_tested": [50, 100, 200, 500, 1000],
+        "verified_with_limits_tested": [
+          50,
+          100,
+          200,
+          500,
+          1000
+        ],
         "limit_5000_result": "HTTP 500 upstream error (SyntaxError parsing upstream response) — real ceiling is somewhere between 1000 and 5000, not established precisely",
         "site_default_limit": 50,
         "total_field": "data.totalResults"
       },
-      "item_fields": ["quote", "score(0-10)", "date", "author", "spoiler", "platform", "reviewedProduct.platform"],
+      "item_fields": [
+        "quote",
+        "score(0-10)",
+        "date",
+        "author",
+        "spoiler",
+        "platform",
+        "reviewedProduct.platform"
+      ],
       "important_caveat": "stats.reviewCount (all ratings incl. textless) can be LARGER than reviews_list.totalResults (only entries with quote). Example onimusha/pc: stats reviewCount=11, list totalResults=5."
     },
     {
@@ -154,8 +243,15 @@
       "method": "GET",
       "url": "https://backend.metacritic.com/reviews/metacritic/critic/games/{slug}/summary/web  (и .../platform/{platform_slug}/summary/web)",
       "verified": true,
-      "response_shape": {"data.item": "{default:[...], positive:[...], negative:[...], neutral:[...]}"},
-      "example_counts_onimusha": {"default": 7, "positive": 7, "negative": 0, "neutral": 7},
+      "response_shape": {
+        "data.item": "{default:[...], positive:[...], negative:[...], neutral:[...]}"
+      },
+      "example_counts_onimusha": {
+        "default": 7,
+        "positive": 7,
+        "negative": 0,
+        "neutral": 7
+      },
       "notes": "undocumented endpoint, not linked from any page we inspected directly but responds 200; without /platform/ segment returns lead-platform summary only, same as stats endpoint"
     },
     {
@@ -164,7 +260,12 @@
       "method": "GET",
       "url": "https://backend.metacritic.com/reviews/metacritic/user/games/{slug}/summary/web  (и .../platform/{platform_slug}/summary/web)",
       "verified": true,
-      "example_counts_onimusha": {"default": 7, "positive": 7, "negative": 2, "neutral": 1}
+      "example_counts_onimusha": {
+        "default": 7,
+        "positive": 7,
+        "negative": 2,
+        "neutral": 1
+      }
     },
     {
       "id": "cover_image_url",
@@ -230,7 +331,10 @@
       "tested_live": true,
       "result": "GET on the signed timedtext URL returned HTTP 200 with an EMPTY body (0 bytes) from this environment's IP via plain curl (no browser, no cookies)",
       "matches_known_issue": "jdepoix/youtube-transcript-api GitHub issue #511 and others: YouTube blocks requests from known cloud-provider IP ranges (AWS/GCP/Azure/DigitalOcean) by ASN regardless of request volume",
-      "workarounds_documented_not_verified": ["rotating residential proxies", "authenticated cookies (risk: account ban)"]
+      "workarounds_documented_not_verified": [
+        "rotating residential proxies",
+        "authenticated cookies (risk: account ban)"
+      ]
     },
     "yt_dlp": {
       "tested_live": true,
@@ -283,5 +387,58 @@
     "The official YouTube API can never return a third party's caption text (OAuth+owner-only restriction); the only path to a transcript is unofficial scraping/yt-dlp, which is documented and empirically observed here to be unreliable specifically on cloud/datacenter IPs — this feature should be designed as best-effort/degradable, not guaranteed.",
     "New-releases pagination is not idempotent across separate hourly runs (no stable sort tie-break) — dedup must key off game id, not offset/page number.",
     "Ready-made sentiment-bucketed review 'summary' endpoints (default/positive/negative/neutral quotes) exist and could reduce the review-summarization pipeline's need to paginate and bucket the full review list manually."
-  ]
+  ],
+  "gemini_model_live_check_2026_09_07": {
+    "purpose": "Проверка по запросу: какая из моделей даёт валидный structured output и не упирается сразу в квоту",
+    "method": "Вызов существующего app/llm/gemini_client.py (без изменений кода) с промптом review_summary_critic.v1 и реальными цитатами критиков (tests/fixtures/reviews_critic.json, игра Onimusha: Way of the Sword). Реальный ключ из .env, вызовы залогированы штатным JsonlLogger в logs/llm/2026-09-06.jsonl.",
+    "models_requested_by_user": [
+      "gemini-3.5-flash-lite",
+      "gemini-2.5-flash-lite",
+      "gemini-2.5-flash"
+    ],
+    "results": {
+      "gemini-3.5-flash-lite": {
+        "status": "ok",
+        "calls_tested": 8,
+        "calls_succeeded": 8,
+        "structured_output_valid": true,
+        "avg_latency_ms_range": [
+          1175,
+          1979
+        ],
+        "input_tokens": 907,
+        "output_tokens_range": [
+          137,
+          150
+        ],
+        "quota_errors": 0
+      },
+      "gemini-2.5-flash-lite": {
+        "status": "error",
+        "http_code": 404,
+        "reason": "NOT_FOUND",
+        "message": "This model models/gemini-2.5-flash-lite is no longer available to new users. Please update your code to use models/gemini-3.5-flash-lite for the latest features and improvements.",
+        "is_quota_issue": false
+      },
+      "gemini-2.5-flash": {
+        "status": "error",
+        "http_code": 404,
+        "reason": "NOT_FOUND",
+        "message": "This model models/gemini-2.5-flash is no longer available to new users. Please update your code to use models/gemini-3.6-flash for the latest features and improvements.",
+        "is_quota_issue": false
+      }
+    },
+    "bonus_check_not_requested_but_relevant": {
+      "model": "gemini-3.8-flash",
+      "note": "This is the model actually pinned in docs/11-decisions.md (OQ-1) and defaulted in app/config.py — checked for context, not one of the 3 models the user asked about.",
+      "status": "error",
+      "http_code": 429,
+      "reason": "RESOURCE_EXHAUSTED",
+      "message": "Quota exceeded for metric: generativelanguage.googleapis.com/generate_content_free_tier_requests, limit: 20, model: gemini-3.8-flash",
+      "retested_after_seconds": 6,
+      "retested_result": "still 429, retry-in grew to ~47s -> persistent daily free-tier quota exhaustion for this specific model, not a transient per-minute burst"
+    },
+    "key_fact": "AI Studio free-tier quota is tracked PER MODEL, not as one shared account-wide pool: gemini-3.5-flash-lite had quota available at the exact moment gemini-3.8-flash was already exhausted.",
+    "conclusion_fact_not_decision": "Of the 3 requested models, only gemini-3.5-flash-lite produced valid structured output with quota available at check time. Both 2.5-* models are decommissioned for new API users (Google-side, not a quota or config issue). The model actually pinned in 11-decisions.md (gemini-3.8-flash) was quota-exhausted at check time. Choosing/changing the model or tier is a decision for docs/11-decisions.md, not for the research stage; this is a point-in-time fact from 2026-09-07."
+  }
 }

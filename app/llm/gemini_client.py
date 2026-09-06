@@ -218,12 +218,6 @@ class GeminiClient:
     def _config(self, prompt: Prompt, schema: type[BaseModel]) -> Any:
         from google.genai import types
 
-        if prompt.model and prompt.model != self.model:
-            # Промпт писался под другую модель — не ошибка, но об этом стоит знать
-            log.info(
-                "промпт %s размечен под %s, вызов идёт в %s",
-                prompt.version_tag, prompt.model, self.model,
-            )
         # Замерено на живом API (gemini-3.8-flash, тот же промпт и цитаты):
         # без thinking_level вызов идёт ~43 с, с `low` — ~3 с, а на `high`
         # модель тратит ~860 токенов на размышления, упирается в
