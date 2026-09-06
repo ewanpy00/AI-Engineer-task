@@ -149,6 +149,29 @@ _GAME_PLATFORMS = text(
 )
 
 
+# Резюме отзывов (T-30). Две строки на игру максимум — критики и пользователи,
+# порядок фиксируем здесь, чтобы шаблон не решал, кто в карточке выше.
+_GAME_SUMMARIES = text(
+    """
+    SELECT audience, platform_slug, liked, disliked, tldr,
+           quotes_count, source, status, prompt_version, model, generated_at
+    FROM review_summaries
+    WHERE game_id = :game_id
+    """
+)
+
+
+async def get_review_summaries(game_id: int) -> dict[str, dict[str, Any]]:
+    """Резюме по аудиториям: `{"critic": {...}, "user": {...}}`.
+
+    Отсутствующая аудитория — отсутствующий ключ: карточка (T-31) сама решает,
+    что показать вместо блока, и отличает «ещё не считали» от `no_data`.
+    """
+    async with get_engine().connect() as conn:
+        rows = (await conn.execute(_GAME_SUMMARIES, {"game_id": game_id})).mappings().all()
+    return {row["audience"]: dict(row) for row in rows}
+
+
 async def get_game(slug: str) -> dict[str, Any] | None:
     """Игра со всеми платформами для `/game/{slug}` или `None`, если её нет."""
     async with get_engine().connect() as conn:

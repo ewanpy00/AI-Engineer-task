@@ -10,6 +10,7 @@ from fastapi.responses import RedirectResponse
 from app.web.repo_games import (
     DEFAULT_SORT,
     get_game,
+    get_review_summaries,
     list_games,
     list_platforms,
     normalize_page,
@@ -90,6 +91,11 @@ async def game_card(request: Request, slug: str):
     game = await get_game(slug)
     if game is None:
         raise HTTPException(status_code=404, detail="game not found")
-    # Резюме отзывов (T-31), похожие игры (T-34) и летсплей (T-46) — отдельные
-    # блоки той же страницы, места под них размечены в шаблоне.
-    return templates.TemplateResponse(request, "game_card.html", {"game": game})
+    # Похожие игры (T-34) и летсплей (T-46) — отдельные блоки той же страницы,
+    # места под них размечены в шаблоне. Резюме читается из БД: модель в
+    # HTTP-запросе не вызывается никогда (design §5.1).
+    return templates.TemplateResponse(
+        request,
+        "game_card.html",
+        {"game": game, "summaries": await get_review_summaries(game["id"])},
+    )

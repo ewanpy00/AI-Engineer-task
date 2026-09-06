@@ -83,8 +83,45 @@
       </section>
     {% endif %}
 
+    <section id="review-summaries">
+      <h2>Что говорят об игре</h2>
+      {# Резюме собирает LLM на обходе каталога (T-30); здесь только чтение из
+         БД. Блок рисуется всегда: «резюме ещё нет» — тоже состояние, и оно
+         должно быть видно, а не выглядеть как отсутствующая секция. #}
+      <div class="summaries">
+        {% for audience, heading in [('critic', 'Критики'), ('user', 'Пользователи')] %}
+          {% set s = summaries.get(audience) %}
+          <div class="summary" data-audience="{{ audience }}">
+            <h3>{{ heading }}</h3>
+            {% if s and s.status == 'ok' %}
+              {% if s.liked %}
+                <p class="verdict good">Нравится</p>
+                <ul class="liked">{% for point in s.liked %}<li>{{ point }}</li>{% endfor %}</ul>
+              {% endif %}
+              {% if s.disliked %}
+                <p class="verdict bad">Не нравится</p>
+                <ul class="disliked">{% for point in s.disliked %}<li>{{ point }}</li>{% endfor %}</ul>
+              {% else %}
+                <p class="muted">Заметных претензий в отзывах нет.</p>
+              {% endif %}
+              {% if s.tldr %}<p class="tldr">{{ s.tldr }}</p>{% endif %}
+              <p class="muted origin">
+                {{ 'Рецензий' if audience == 'critic' else 'Отзывов' }}: {{ s.quotes_count }}
+                {%- if s.generated_at %} · собрано {{ s.generated_at.strftime('%d.%m.%Y') }}{% endif %}
+              </p>
+            {% elif s and s.status == 'no_data' %}
+              <p class="muted">Отзывов пока нет.</p>
+            {% else %}
+              {# llm_failed или строки ещё нет: пользователю важно одно — что
+                 это временно. Текст ошибки на экран не выносим (design §5.5). #}
+              <p class="muted">Резюме не готово, обновится при следующем обходе.</p>
+            {% endif %}
+          </div>
+        {% endfor %}
+      </div>
+    </section>
+
     {# Места под блоки следующих срезов: добавляются содержимым, без переверстки. #}
-    <section id="review-summaries" data-block="T-31"></section>
     <section id="similar-games" data-block="T-34"></section>
     <section id="letsplay" data-block="T-46"></section>
 
@@ -114,6 +151,16 @@
              font-weight:600; text-align:center; color:#111; }
     .metascore { background:#ffcc33; }
     .userscore { background:#7ec8a0; }
+    .summaries { display:flex; gap:24px; flex-wrap:wrap; }
+    .summary { flex:1 1 300px; min-width:0; padding:14px 16px; border:1px solid var(--line); border-radius:10px; }
+    .summary h3 { margin:0 0 10px; font-size:15px; }
+    .summary ul { margin:0 0 12px; padding-left:20px; font-size:14px; }
+    .summary li { margin-bottom:4px; }
+    .verdict { margin:0 0 6px; font-size:13px; font-weight:600; }
+    .verdict.good { color:#2f7d55; }
+    .verdict.bad { color:#a33; }
+    .tldr { margin:12px 0 0; font-size:14px; padding-top:10px; border-top:1px solid var(--line); }
+    .summary .origin { margin:10px 0 0; font-size:12px; }
     .video { position:relative; aspect-ratio:16/9; max-width:720px; background:#000; border-radius:10px; overflow:hidden; }
     .video iframe { position:absolute; inset:0; width:100%; height:100%; border:0; }
     .back { margin-top:32px; }
