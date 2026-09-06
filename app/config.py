@@ -19,7 +19,9 @@ class Settings(BaseSettings):
     ya300_session_id: str = ""
 
     metacritic_base_url: str = "https://backend.metacritic.com"
-    metacritic_cdn_url: str = "https://www.metacritic.com/a/img"
+    # research зафиксировал .../a/img/{bucketPath} — сегодня это 404: между /a/img
+    # и bucketPath обязателен bucketType, у игровых обложек он всегда "catalog"
+    metacritic_cdn_url: str = "https://www.metacritic.com/a/img/catalog"
     metacritic_user_agent: str = "metacritic-digest/0.1 (+contact: local dev)"
     metacritic_rps: float = 1.0
     metacritic_max_retries: int = 3

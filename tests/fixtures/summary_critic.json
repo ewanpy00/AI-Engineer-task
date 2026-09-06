@@ -1,0 +1,40 @@
+{
+ "data": {
+  "id": null,
+  "totalResults": 92,
+  "item": {
+   "default": [],
+   "positive": [],
+   "negative": [],
+   "neutral": []
+  }
+ },
+ "links": {
+  "self": {
+   "href": "https://backend.metacritic.com/reviews/metacritic/critic/games/onimusha-way-of-the-sword/platform/playstation-5/summary/web"
+  },
+  "tabs": [
+   {
+    "label": "All Reviews",
+    "href": ""
+   },
+   {
+    "label": "Positive Reviews",
+    "href": ""
+   },
+   {
+    "label": "Mixed Reviews",
+    "href": ""
+   },
+   {
+    "label": "Negative Reviews",
+    "href": ""
+   }
+  ]
+ },
+ "meta": {
+  "componentName": null,
+  "componentDisplayName": null,
+  "componentType": null
+ }
+}

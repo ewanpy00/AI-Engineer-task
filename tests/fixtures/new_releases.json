@@ -1,0 +1,403 @@
+{
+ "data": {
+  "id": "70a4e6d6-251e-4e20-bcea-1699f2450819",
+  "totalResults": 18524,
+  "items": [
+   {
+    "id": 1300662655,
+    "type": "game-title",
+    "typeId": 13,
+    "title": "Onimusha: Way of the Sword",
+    "slug": "onimusha-way-of-the-sword",
+    "premiereYear": 2026,
+    "releaseDate": "2026-09-04",
+    "rating": "M",
+    "seoUrl": null,
+    "image": {
+     "id": null,
+     "filename": "7-1781631535.jpg",
+     "dateCreated": {
+      "date": null,
+      "timezone": null
+     },
+     "alt": null,
+     "credits": null,
+     "path": null,
+     "cropGravity": null,
+     "crop": null,
+     "caption": null,
+     "typeName": null,
+     "imageUrl": null,
+     "width": 226,
+     "height": 332,
+     "sType": null,
+     "bucketType": "catalog",
+     "bucketPath": "/provider/7/2/7-1781631535.jpg",
+     "mediaType": null,
+     "provider": null
+    },
+    "criticScoreSummary": {
+     "url": "/game/onimusha-way-of-the-sword/critic-reviews/",
+     "max": 100,
+     "score": 85,
+     "reviewCount": 92,
+     "positiveCount": 82,
+     "neutralCount": 7,
+     "negativeCount": 0,
+     "sentiment": "Generally favorable"
+    },
+    "genres": [
+     {
+      "id": null,
+      "name": "Action Adventure"
+     }
+    ],
+    "numberOfSeasons": 0,
+    "network": null,
+    "description": "Fight through bloodstained battlefields of intense swordplay action. Explore the historic Japanese capital of Edo-era Kyoto, twisted by malevolent clouds of Malice. With every stage cloaked in mystery, danger and intrigue. Battle against monstrosities from the underworld known as Genma in a tale of dark fantasy.\r\n\r\nFollow the tale of a samurai who wields the Oni Gauntlet, a mystical artifact that grants its bearer the power to slay Genma.\r\n\r\nThrough gritty, blood-soaked brawls, he searches for his reason to fight. What fate awaits at the end of his path?",
+    "duration": 0,
+    "streamingDates": {
+     "videoClosestPastAvailableDate": null,
+     "videoClosestFutureAvailableDate": null,
+     "videoClosestPastExpiryDate": null,
+     "videoClosestFutureExpiryDate": null,
+     "videoClosestPastAvailableNetworkId": null,
+     "videoClosestFutureAvailableNetworkId": null,
+     "videoClosestPastExpiryNetworkId": null,
+     "videoClosestFutureExpiryNetworkId": null,
+     "networkStreamingDates": null
+    },
+    "userScore": {
+     "score": 8.7
+    }
+   },
+   {
+    "id": 1300750077,
+    "type": "game-title",
+    "typeId": 13,
+    "title": "NBA 2K27",
+    "slug": "nba-2k27",
+    "premiereYear": 2026,
+    "releaseDate": "2026-09-04",
+    "rating": "E",
+    "seoUrl": null,
+    "image": {
+     "id": null,
+     "filename": "7-1787423840.jpg",
+     "dateCreated": {
+      "date": null,
+      "timezone": null
+     },
+     "alt": null,
+     "credits": null,
+     "path": null,
+     "cropGravity": null,
+     "crop": null,
+     "caption": null,
+     "typeName": null,
+     "imageUrl": null,
+     "width": 725,
+     "height": 910,
+     "sType": null,
+     "bucketType": "catalog",
+     "bucketPath": "/provider/7/2/7-1787423840.jpg",
+     "mediaType": null,
+     "provider": null
+    },
+    "criticScoreSummary": {
+     "url": "/game/nba-2k27/critic-reviews/",
+     "max": 100,
+     "score": 79,
+     "reviewCount": 6,
+     "positiveCount": 4,
+     "neutralCount": 1,
+     "negativeCount": 0,
+     "sentiment": "Generally favorable"
+    },
+    "genres": [
+     {
+      "id": null,
+      "name": "Basketball Sim"
+     }
+    ],
+    "numberOfSeasons": 0,
+    "network": null,
+    "description": "Nothing is out of reach for Victor Wembanyama, including becoming the face of the league. The reigning Defensive Player of the Year is shattering records at an unprecedented pace, and his talent can only be described as otherworldly. The future has arrived and it’s on the cover of NBA 2K27. Caitlin Clark is changing the game with her limitless range, but it’s her will to win that’s fueled her rapid ascent from college phenom to WNBA superstar. Clark holds the all-time NCAA Division I scoring record for both men and women, is a No. 1 overall pick, Rookie of the Year, two-time All-Star, and the ultimate competitor. Take the court with NBA 2K27 Deluxe Edition and make every possession a viral highlight. He started with a dream on the South Side of Chicago, and built a legacy that inspired the world. Derrick Rose is the youngest MVP in NBA history, a three-time All-Star, an icon on and off the court, and an NBA 2K cover star. Celebrate his career with NBA 2K27 Ultra Edition and follow in his footsteps as you lead an NBA franchise.[2K Sports]",
+    "duration": 0,
+    "streamingDates": {
+     "videoClosestPastAvailableDate": null,
+     "videoClosestFutureAvailableDate": null,
+     "videoClosestPastExpiryDate": null,
+     "videoClosestFutureExpiryDate": null,
+     "videoClosestPastAvailableNetworkId": null,
+     "videoClosestFutureAvailableNetworkId": null,
+     "videoClosestPastExpiryNetworkId": null,
+     "videoClosestFutureExpiryNetworkId": null,
+     "networkStreamingDates": null
+    },
+    "userScore": {
+     "score": null
+    }
+   },
+   {
+    "id": 1300655618,
+    "type": "game-title",
+    "typeId": 13,
+    "title": "The Blood of Dawnwalker",
+    "slug": "the-blood-of-dawnwalker",
+    "premiereYear": 2026,
+    "releaseDate": "2026-09-03",
+    "rating": "M",
+    "seoUrl": null,
+    "image": {
+     "id": null,
+     "filename": "7-1777678175.jpg",
+     "dateCreated": {
+      "date": null,
+      "timezone": null
+     },
+     "alt": null,
+     "credits": null,
+     "path": null,
+     "cropGravity": null,
+     "crop": null,
+     "caption": null,
+     "typeName": null,
+     "imageUrl": null,
+     "width": 374,
+     "height": 562,
+     "sType": null,
+     "bucketType": "catalog",
+     "bucketPath": "/provider/7/2/7-1777678175.jpg",
+     "mediaType": null,
+     "provider": null
+    },
+    "criticScoreSummary": {
+     "url": "/game/the-blood-of-dawnwalker/critic-reviews/",
+     "max": 100,
+     "score": 83,
+     "reviewCount": 63,
+     "positiveCount": 55,
+     "neutralCount": 7,
+     "negativeCount": 0,
+     "sentiment": "Generally favorable"
+    },
+    "genres": [
+     {
+      "id": null,
+      "name": "Action RPG"
+     }
+    ],
+    "numberOfSeasons": 0,
+    "network": null,
+    "description": "Bringing together a talented team of developers, including members of the core team behind one of the most acclaimed games of all time - The Witcher 3: Wild Hunt along with its expansions, Rebel Wolves’ first title is a dark fantasy narrative sandbox, AAA action-RPG set in medieval Europe.\r\n\r\nThis brand-new IP is aimed at mature audiences and is powered by Unreal Engine 5.",
+    "duration": 0,
+    "streamingDates": {
+     "videoClosestPastAvailableDate": null,
+     "videoClosestFutureAvailableDate": null,
+     "videoClosestPastExpiryDate": null,
+     "videoClosestFutureExpiryDate": null,
+     "videoClosestPastAvailableNetworkId": null,
+     "videoClosestFutureAvailableNetworkId": null,
+     "videoClosestPastExpiryNetworkId": null,
+     "videoClosestFutureExpiryNetworkId": null,
+     "networkStreamingDates": null
+    },
+    "userScore": {
+     "score": 8.2
+    }
+   },
+   {
+    "id": 1300714329,
+    "type": "game-title",
+    "typeId": 13,
+    "title": "Orbitals",
+    "slug": "orbitals",
+    "premiereYear": 2026,
+    "releaseDate": "2026-09-03",
+    "rating": "E10+",
+    "seoUrl": null,
+    "image": {
+     "id": null,
+     "filename": "7-1787423536.jpg",
+     "dateCreated": {
+      "date": null,
+      "timezone": null
+     },
+     "alt": null,
+     "credits": null,
+     "path": null,
+     "cropGravity": null,
+     "crop": null,
+     "caption": null,
+     "typeName": null,
+     "imageUrl": null,
+     "width": 310,
+     "height": 462,
+     "sType": null,
+     "bucketType": "catalog",
+     "bucketPath": "/provider/7/2/7-1787423536.jpg",
+     "mediaType": null,
+     "provider": null
+    },
+    "criticScoreSummary": {
+     "url": "/game/orbitals/critic-reviews/",
+     "max": 100,
+     "score": 82,
+     "reviewCount": 67,
+     "positiveCount": 55,
+     "neutralCount": 10,
+     "negativeCount": 0,
+     "sentiment": "Generally favorable"
+    },
+    "genres": [
+     {
+      "id": null,
+      "name": "Linear Action Adventure"
+     }
+    ],
+    "numberOfSeasons": 0,
+    "network": null,
+    "description": "Launch into Orbitals, an intergalactic 2-player co-op adventure set in a classic retro anime universe!\r\n \r\nTeam up as explorers Maki and Omura to brave the perils of space and save their home from the dangers of a supernatural cosmic storm.\r\n \r\nAs you navigate uncharted areas, close collaboration is vital - remember, you can only save your home by working together!",
+    "duration": 0,
+    "streamingDates": {
+     "videoClosestPastAvailableDate": null,
+     "videoClosestFutureAvailableDate": null,
+     "videoClosestPastExpiryDate": null,
+     "videoClosestFutureExpiryDate": null,
+     "videoClosestPastAvailableNetworkId": null,
+     "videoClosestFutureAvailableNetworkId": null,
+     "videoClosestPastExpiryNetworkId": null,
+     "videoClosestFutureExpiryNetworkId": null,
+     "networkStreamingDates": null
+    },
+    "userScore": {
+     "score": 8.3
+    }
+   },
+   {
+    "id": 1300737109,
+    "type": "game-title",
+    "typeId": 13,
+    "title": "Marsupilami 2 - Salsa Palombia",
+    "slug": "marsupilami-2-salsa-palombia",
+    "premiereYear": 2026,
+    "releaseDate": "2026-09-03",
+    "rating": null,
+    "seoUrl": null,
+    "image": {
+     "id": null,
+     "filename": "7-1788547757.jpg",
+     "dateCreated": {
+      "date": null,
+      "timezone": null
+     },
+     "alt": null,
+     "credits": null,
+     "path": null,
+     "cropGravity": null,
+     "crop": null,
+     "caption": null,
+     "typeName": null,
+     "imageUrl": null,
+     "width": 280,
+     "height": 421,
+     "sType": null,
+     "bucketType": "catalog",
+     "bucketPath": "/provider/7/2/7-1788547757.jpg",
+     "mediaType": null,
+     "provider": null
+    },
+    "criticScoreSummary": {
+     "url": "/game/marsupilami-2-salsa-palombia/critic-reviews/",
+     "max": 100,
+     "score": 79,
+     "reviewCount": 5,
+     "positiveCount": 4,
+     "neutralCount": 1,
+     "negativeCount": 0,
+     "sentiment": "Generally favorable"
+    },
+    "genres": [
+     {
+      "id": null,
+      "name": "2D Platformer"
+     }
+    ],
+    "numberOfSeasons": 0,
+    "network": null,
+    "description": " A strange melody has swept across Palombia… and suddenly every animal starts dancing wildly, throwing the jungle into total chaos! Behind this rhythmic madness lurks the Mummy Queen, back from the Underworld with her crew to deliver a cursed concert with devastating effects. To restore peace to the jungle, take control of the three young Marsus, each with their own signature ability. Twister shoots through the air with a turbo glide, Hope leaps forward with an energetic spinning jump, and Punch bounces with powerful force to knock aside anything in his path! Switch instantly from one Marsu to another to unleash their powers and chain together stylish moves. And for even more fun, share the adventure with a friend thanks to local co‑op mode! From the Jungle to the City, from Snowy Mountains to the mysterious Underworld…explore four enchanting worlds packed with surprises, challenges, and unique gameplay mechanics. Beyond the main adventure, take on the Flow Mode, a speed-focused challenge where you must complete a series of trials without dying to prove your skills! And for even more fun, challenge your friends in competitive dojos. ",
+    "duration": 0,
+    "streamingDates": {
+     "videoClosestPastAvailableDate": null,
+     "videoClosestFutureAvailableDate": null,
+     "videoClosestPastExpiryDate": null,
+     "videoClosestFutureExpiryDate": null,
+     "videoClosestPastAvailableNetworkId": null,
+     "videoClosestFutureAvailableNetworkId": null,
+     "videoClosestPastExpiryNetworkId": null,
+     "videoClosestFutureExpiryNetworkId": null,
+     "networkStreamingDates": null
+    },
+    "userScore": {
+     "score": null
+    }
+   }
+  ],
+  "genres": null,
+  "network": null
+ },
+ "links": {
+  "self": {
+   "href": "https://backend.metacritic.com/finder/metacritic/web?componentName=new-releases-carousel&componentType=ProductList&sortBy=-releaseDate&metaScoreMin=1&mcoTypeId=13&offset=0&limit=5",
+   "meta": {
+    "pageNum": 1,
+    "count": 5
+   }
+  },
+  "prev": {
+   "href": null,
+   "meta": null
+  },
+  "next": {
+   "href": "https://backend.metacritic.com/finder/metacritic/web?componentName=new-releases-carousel&componentType=ProductList&sortBy=-releaseDate&metaScoreMin=1&mcoTypeId=13&offset=5&limit=5",
+   "meta": {
+    "pageNum": 2,
+    "count": 5
+   }
+  },
+  "first": {
+   "href": "https://backend.metacritic.com/finder/metacritic/web?componentName=new-releases-carousel&componentType=ProductList&sortBy=-releaseDate&metaScoreMin=1&mcoTypeId=13&offset=0&limit=5",
+   "meta": {
+    "pageNum": 1,
+    "count": 5
+   }
+  },
+  "last": {
+   "href": "https://backend.metacritic.com/finder/metacritic/web?componentName=new-releases-carousel&componentType=ProductList&sortBy=-releaseDate&metaScoreMin=1&mcoTypeId=13&offset=18520&limit=5",
+   "meta": {
+    "pageNum": 3705,
+    "count": 4
+   }
+  },
+  "tabs": [
+   {
+    "label": "New Releases",
+    "href": "https://backend.metacritic.com/finder/metacritic/web?componentName=new-releases-carousel&componentType=ProductList&sortBy=-releaseDate&metaScoreMin=1&mcoTypeId=13&offset=0&limit=5"
+   },
+   {
+    "label": "Top Critics' Picks",
+    "href": "https://backend.metacritic.com/finder/metacritic/web?componentName=new-releases-carousel&componentType=ProductList&sortBy=-metaScore&metaScoreMin=1&mcoTypeId=13&offset=0&limit=5"
+   },
+   {
+    "label": "Most Popular",
+    "href": "https://backend.metacritic.com/finder/metacritic/web?componentName=new-releases-carousel&componentType=ProductList&sortBy=-popularityCount&metaScoreMin=1&mcoTypeId=13&offset=0&limit=5"
+   }
+  ]
+ },
+ "meta": {
+  "componentName": "new-releases-carousel",
+  "componentDisplayName": null,
+  "componentType": "ProductList"
+ }
+}

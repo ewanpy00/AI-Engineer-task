@@ -1,0 +1,392 @@
+{
+ "data": {
+  "id": "2edc03f3-90b4-4b2a-9d20-4cfed1efd6a1",
+  "totalResults": 177895,
+  "items": [
+   {
+    "id": 1300014868,
+    "type": "game-title",
+    "typeId": 13,
+    "title": "Phantom: Phantom of Inferno",
+    "slug": "phantom-phantom-of-inferno",
+    "premiereYear": 2026,
+    "releaseDate": "2026-09-04",
+    "rating": null,
+    "seoUrl": null,
+    "image": {
+     "id": null,
+     "filename": "6-1-43919-13.jpg",
+     "dateCreated": {
+      "date": null,
+      "timezone": null
+     },
+     "alt": null,
+     "credits": null,
+     "path": null,
+     "cropGravity": null,
+     "crop": null,
+     "caption": null,
+     "typeName": null,
+     "imageUrl": null,
+     "width": 250,
+     "height": 358,
+     "sType": null,
+     "bucketType": "catalog",
+     "bucketPath": "/provider/6/3/6-1-43919-13.jpg",
+     "mediaType": null,
+     "provider": null
+    },
+    "criticScoreSummary": {
+     "url": "/game/phantom-phantom-of-inferno/critic-reviews/",
+     "max": 100,
+     "score": null,
+     "reviewCount": 0,
+     "positiveCount": 0,
+     "neutralCount": 0,
+     "negativeCount": 0,
+     "sentiment": "tbd"
+    },
+    "genres": [
+     {
+      "id": null,
+      "name": "Visual Novel"
+     }
+    ],
+    "numberOfSeasons": 0,
+    "network": null,
+    "description": "NITRO ORIGIN's debut title, Phantom PHANTOM OF INFERNO, is coming to Steam! A web of swirling conspiracies. A whirlwind of bullets. Amidst it all, a poignant tale of a boy and a girl unfolds...\r\n",
+    "duration": 0,
+    "streamingDates": {
+     "videoClosestPastAvailableDate": null,
+     "videoClosestFutureAvailableDate": null,
+     "videoClosestPastExpiryDate": null,
+     "videoClosestFutureExpiryDate": null,
+     "videoClosestPastAvailableNetworkId": null,
+     "videoClosestFutureAvailableNetworkId": null,
+     "videoClosestPastExpiryNetworkId": null,
+     "videoClosestFutureExpiryNetworkId": null,
+     "networkStreamingDates": null
+    },
+    "userScore": {
+     "score": null
+    }
+   },
+   {
+    "id": 1300579165,
+    "type": "game-title",
+    "typeId": 13,
+    "title": "Carrot Revenge",
+    "slug": "carrot-revenge",
+    "premiereYear": 2026,
+    "releaseDate": "2026-09-04",
+    "rating": null,
+    "seoUrl": null,
+    "image": {
+     "id": null,
+     "filename": "6-1-894520-52.jpg",
+     "dateCreated": {
+      "date": null,
+      "timezone": null
+     },
+     "alt": null,
+     "credits": null,
+     "path": null,
+     "cropGravity": null,
+     "crop": null,
+     "caption": null,
+     "typeName": null,
+     "imageUrl": null,
+     "width": 460,
+     "height": 215,
+     "sType": null,
+     "bucketType": "catalog",
+     "bucketPath": "/provider/6/12/6-1-894520-52.jpg",
+     "mediaType": null,
+     "provider": null
+    },
+    "criticScoreSummary": {
+     "url": "/game/carrot-revenge/critic-reviews/",
+     "max": 100,
+     "score": null,
+     "reviewCount": 0,
+     "positiveCount": 0,
+     "neutralCount": 0,
+     "negativeCount": 0,
+     "sentiment": "tbd"
+    },
+    "genres": [
+     {
+      "id": null,
+      "name": "Top-Down Shoot-'Em-Up"
+     }
+    ],
+    "numberOfSeasons": 0,
+    "network": null,
+    "description": "You are RABBIT, a lonely survivor from an alien abduction, you don't know where you are, or why. After waking up, you realize you aren't home, and that escaping is not an option.\n\nIn this bullet-hell journey, encounter more than 10 types of enemies (and more than a hundred of them).\n\nExplore different builds and mechanics and more importantly, survive!",
+    "duration": 0,
+    "streamingDates": {
+     "videoClosestPastAvailableDate": null,
+     "videoClosestFutureAvailableDate": null,
+     "videoClosestPastExpiryDate": null,
+     "videoClosestFutureExpiryDate": null,
+     "videoClosestPastAvailableNetworkId": null,
+     "videoClosestFutureAvailableNetworkId": null,
+     "videoClosestPastExpiryNetworkId": null,
+     "videoClosestFutureExpiryNetworkId": null,
+     "networkStreamingDates": null
+    },
+    "userScore": {
+     "score": null
+    }
+   },
+   {
+    "id": 1300616666,
+    "type": "game-title",
+    "typeId": 13,
+    "title": "Vespera",
+    "slug": "vespera",
+    "premiereYear": 2026,
+    "releaseDate": "2026-09-04",
+    "rating": null,
+    "seoUrl": null,
+    "image": {
+     "id": null,
+     "filename": "6-1-981947-52.jpg",
+     "dateCreated": {
+      "date": null,
+      "timezone": null
+     },
+     "alt": null,
+     "credits": null,
+     "path": null,
+     "cropGravity": null,
+     "crop": null,
+     "caption": null,
+     "typeName": null,
+     "imageUrl": null,
+     "width": 460,
+     "height": 215,
+     "sType": null,
+     "bucketType": "catalog",
+     "bucketPath": "/provider/6/12/6-1-981947-52.jpg",
+     "mediaType": null,
+     "provider": null
+    },
+    "criticScoreSummary": {
+     "url": "/game/vespera/critic-reviews/",
+     "max": 100,
+     "score": null,
+     "reviewCount": 0,
+     "positiveCount": 0,
+     "neutralCount": 0,
+     "negativeCount": 0,
+     "sentiment": "tbd"
+    },
+    "genres": [
+     {
+      "id": null,
+      "name": "Adventure"
+     }
+    ],
+    "numberOfSeasons": 0,
+    "network": null,
+    "description": null,
+    "duration": 0,
+    "streamingDates": {
+     "videoClosestPastAvailableDate": null,
+     "videoClosestFutureAvailableDate": null,
+     "videoClosestPastExpiryDate": null,
+     "videoClosestFutureExpiryDate": null,
+     "videoClosestPastAvailableNetworkId": null,
+     "videoClosestFutureAvailableNetworkId": null,
+     "videoClosestPastExpiryNetworkId": null,
+     "videoClosestFutureExpiryNetworkId": null,
+     "networkStreamingDates": null
+    },
+    "userScore": {
+     "score": null
+    }
+   },
+   {
+    "id": 1300657627,
+    "type": "game-title",
+    "typeId": 13,
+    "title": "Cosmic High Schooler",
+    "slug": "cosmic-high-schooler",
+    "premiereYear": 2026,
+    "releaseDate": "2026-09-04",
+    "rating": null,
+    "seoUrl": null,
+    "image": {
+     "id": null,
+     "filename": "6-1-1069287-52.jpg",
+     "dateCreated": {
+      "date": null,
+      "timezone": null
+     },
+     "alt": null,
+     "credits": null,
+     "path": null,
+     "cropGravity": null,
+     "crop": null,
+     "caption": null,
+     "typeName": null,
+     "imageUrl": null,
+     "width": 460,
+     "height": 215,
+     "sType": null,
+     "bucketType": "catalog",
+     "bucketPath": "/provider/6/12/6-1-1069287-52.jpg",
+     "mediaType": null,
+     "provider": null
+    },
+    "criticScoreSummary": {
+     "url": "/game/cosmic-high-schooler/critic-reviews/",
+     "max": 100,
+     "score": null,
+     "reviewCount": 0,
+     "positiveCount": 0,
+     "neutralCount": 0,
+     "negativeCount": 0,
+     "sentiment": "tbd"
+    },
+    "genres": [
+     {
+      "id": null,
+      "name": "Visual Novel"
+     }
+    ],
+    "numberOfSeasons": 0,
+    "network": null,
+    "description": null,
+    "duration": 0,
+    "streamingDates": {
+     "videoClosestPastAvailableDate": null,
+     "videoClosestFutureAvailableDate": null,
+     "videoClosestPastExpiryDate": null,
+     "videoClosestFutureExpiryDate": null,
+     "videoClosestPastAvailableNetworkId": null,
+     "videoClosestFutureAvailableNetworkId": null,
+     "videoClosestPastExpiryNetworkId": null,
+     "videoClosestFutureExpiryNetworkId": null,
+     "networkStreamingDates": null
+    },
+    "userScore": {
+     "score": null
+    }
+   },
+   {
+    "id": 1300625215,
+    "type": "game-title",
+    "typeId": 13,
+    "title": "Thorgard",
+    "slug": "thorgard",
+    "premiereYear": 2026,
+    "releaseDate": "2026-09-04",
+    "rating": null,
+    "seoUrl": null,
+    "image": {
+     "id": null,
+     "filename": "6-1-1001592-52.jpg",
+     "dateCreated": {
+      "date": null,
+      "timezone": null
+     },
+     "alt": null,
+     "credits": null,
+     "path": null,
+     "cropGravity": null,
+     "crop": null,
+     "caption": null,
+     "typeName": null,
+     "imageUrl": null,
+     "width": 460,
+     "height": 215,
+     "sType": null,
+     "bucketType": "catalog",
+     "bucketPath": "/provider/6/12/6-1-1001592-52.jpg",
+     "mediaType": null,
+     "provider": null
+    },
+    "criticScoreSummary": {
+     "url": "/game/thorgard/critic-reviews/",
+     "max": 100,
+     "score": null,
+     "reviewCount": 0,
+     "positiveCount": 0,
+     "neutralCount": 0,
+     "negativeCount": 0,
+     "sentiment": "tbd"
+    },
+    "genres": [
+     {
+      "id": null,
+      "name": "Defense"
+     }
+    ],
+    "numberOfSeasons": 0,
+    "network": null,
+    "description": "Vikings, pirates, and suspiciously organized ducks all want a sip of your legendary mead. Grab your axe, mow down the horde, and defend Thorgard's finest brew.... one swing at a time.\r\n",
+    "duration": 0,
+    "streamingDates": {
+     "videoClosestPastAvailableDate": null,
+     "videoClosestFutureAvailableDate": null,
+     "videoClosestPastExpiryDate": null,
+     "videoClosestFutureExpiryDate": null,
+     "videoClosestPastAvailableNetworkId": null,
+     "videoClosestFutureAvailableNetworkId": null,
+     "videoClosestPastExpiryNetworkId": null,
+     "videoClosestFutureExpiryNetworkId": null,
+     "networkStreamingDates": null
+    },
+    "userScore": {
+     "score": null
+    }
+   }
+  ],
+  "genres": null,
+  "network": null
+ },
+ "links": {
+  "self": {
+   "href": "https://backend.metacritic.com/finder/metacritic/web?sortBy=-releaseDate&mcoTypeId=13&offset=20&limit=5",
+   "meta": {
+    "pageNum": 5,
+    "count": 5
+   }
+  },
+  "prev": {
+   "href": "https://backend.metacritic.com/finder/metacritic/web?sortBy=-releaseDate&mcoTypeId=13&offset=15&limit=5",
+   "meta": {
+    "pageNum": 4,
+    "count": 5
+   }
+  },
+  "next": {
+   "href": "https://backend.metacritic.com/finder/metacritic/web?sortBy=-releaseDate&mcoTypeId=13&offset=25&limit=5",
+   "meta": {
+    "pageNum": 6,
+    "count": 5
+   }
+  },
+  "first": {
+   "href": "https://backend.metacritic.com/finder/metacritic/web?sortBy=-releaseDate&mcoTypeId=13&offset=0&limit=5",
+   "meta": {
+    "pageNum": 1,
+    "count": 5
+   }
+  },
+  "last": {
+   "href": "https://backend.metacritic.com/finder/metacritic/web?sortBy=-releaseDate&mcoTypeId=13&offset=177890&limit=5",
+   "meta": {
+    "pageNum": 35580,
+    "count": 0
+   }
+  }
+ },
+ "meta": {
+  "componentName": null,
+  "componentDisplayName": null,
+  "componentType": null
+ }
+}

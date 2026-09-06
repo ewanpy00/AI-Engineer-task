@@ -8,7 +8,7 @@ from fastapi import FastAPI
 from fastapi.responses import JSONResponse
 
 from app import db
-from app.web import routes_games
+from app.web import routes_admin, routes_games
 from app.web.templating import templates  # noqa: F401  (инициализация Jinja2-окружения)
 
 
@@ -21,6 +21,7 @@ async def lifespan(app: FastAPI):
 
 app = FastAPI(title="Metacritic digest", lifespan=lifespan)
 app.include_router(routes_games.router)
+app.include_router(routes_admin.router)
 
 
 @app.get("/healthz")

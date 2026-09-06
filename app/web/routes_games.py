@@ -5,6 +5,7 @@ from __future__ import annotations
 from fastapi import APIRouter, Request
 from fastapi.responses import RedirectResponse
 
+from app.web.repo_games import list_games
 from app.web.templating import templates
 
 router = APIRouter()
@@ -17,5 +18,5 @@ async def index() -> RedirectResponse:
 
 @router.get("/games")
 async def games_list(request: Request):
-    # TODO T-10: читать игры из БД
-    return templates.TemplateResponse(request, "games_list.html", {"games": []})
+    # TODO T-15: поиск по названию, фильтр по платформе, сортировка, пагинация
+    return templates.TemplateResponse(request, "games_list.html", {"games": await list_games()})

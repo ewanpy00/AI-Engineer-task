@@ -3,5 +3,55 @@
   <h1>Игры</h1>
   {% if not games %}
     <p class="muted">Игр пока нет — запустите обработку через <code>POST /admin/run</code>.</p>
+  {% else %}
+    <p class="muted">Всего: {{ games|length }}</p>
+    <ul class="cards">
+      {% for game in games %}
+        <li class="card">
+          {# TODO T-14: обложка и название ведут на /game/{{ '{slug}' }} #}
+          <div class="cover">
+            {% if game.cover_path %}
+              <img src="{{ cover_url(game.cover_path) }}" alt="{{ game.title }}" loading="lazy">
+            {% else %}
+              <span class="cover-empty muted">без обложки</span>
+            {% endif %}
+          </div>
+          <div class="body">
+            <span class="title">{{ game.title }}</span>
+            {% if game.platforms %}
+              <p class="muted platforms">{{ game.platforms|join(', ') }}</p>
+            {% endif %}
+            <p class="scores">
+              {% if game.best_metascore is not none %}
+                <span class="score metascore" title="Metascore">{{ game.best_metascore }}</span>
+              {% endif %}
+              {% if game.best_userscore is not none %}
+                <span class="score userscore" title="Userscore">{{ '%.1f'|format(game.best_userscore) }}</span>
+              {% endif %}
+              {% if game.best_metascore is none and game.best_userscore is none %}
+                <span class="muted">без оценок</span>
+              {% endif %}
+            </p>
+          </div>
+        </li>
+      {% endfor %}
+    </ul>
   {% endif %}
+
+  <style>
+    .cards { list-style:none; margin:0; padding:0;
+             display:grid; gap:16px; grid-template-columns:repeat(auto-fill, minmax(180px, 1fr)); }
+    .card { background:var(--card); border:1px solid var(--line); border-radius:10px; overflow:hidden;
+            display:flex; flex-direction:column; }
+    .card .cover { display:block; aspect-ratio:226/332; background:var(--line); }
+    .card .cover img { width:100%; height:100%; object-fit:cover; display:block; }
+    .cover-empty { display:flex; height:100%; align-items:center; justify-content:center; font-size:13px; }
+    .card .body { padding:10px 12px 12px; display:flex; flex-direction:column; gap:6px; }
+    .card .title { font-weight:600; text-decoration:none; line-height:1.3; }
+    .card .platforms, .card .scores { margin:0; font-size:13px; }
+    .score { display:inline-block; min-width:30px; padding:2px 6px; border-radius:5px;
+             font-weight:600; text-align:center; color:#111; }
+    .metascore { background:#ffcc33; }
+    .userscore { background:#7ec8a0; }
+  </style>
 {% endblock %}

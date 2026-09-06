@@ -1,0 +1,510 @@
+{
+ "data": {
+  "item": {
+   "id": 1300662655,
+   "type": "game-title",
+   "typeId": 13,
+   "title": "Onimusha: Way of the Sword",
+   "slug": "onimusha-way-of-the-sword",
+   "mustPlay": false,
+   "premiereYear": 2026,
+   "description": "Fight through bloodstained battlefields of intense swordplay action. Explore the historic Japanese capital of Edo-era Kyoto, twisted by malevolent clouds of Malice. With every stage cloaked in mystery, danger and intrigue. Battle against monstrosities from the underworld known as Genma in a tale of dark fantasy.\r\n\r\nFollow the tale of a samurai who wields the Oni Gauntlet, a mystical artifact that grants its bearer the power to slay Genma.\r\n\r\nThrough gritty, blood-soaked brawls, he searches for his reason to fight. What fate awaits at the end of his path?",
+   "platform": "PlayStation 5",
+   "criticScoreSummary": {
+    "url": "/game/onimusha-way-of-the-sword/critic-reviews/",
+    "max": 100,
+    "score": 85,
+    "normalizedScore": 85.0202,
+    "reviewCount": 92,
+    "positiveCount": 82,
+    "neutralCount": 7,
+    "negativeCount": 0,
+    "sentiment": "Generally favorable"
+   },
+   "releaseDate": "2026-09-04",
+   "releaseDateText": "2026-09-04",
+   "production": {
+    "companies": [
+     {
+      "id": 4000000247,
+      "typeId": 1,
+      "typeName": "Developer",
+      "name": "Capcom",
+      "url": "/company/capcom/"
+     },
+     {
+      "id": 4000000247,
+      "typeId": 2,
+      "typeName": "Publisher",
+      "name": "Capcom",
+      "url": "/company/capcom/"
+     }
+    ],
+    "officialSite": null,
+    "crew": [
+     {
+      "id": 3016987950,
+      "name": "Satoru Nihei",
+      "roles": [
+       "Directed By"
+      ],
+      "slug": "satoru-nihei"
+     },
+     {
+      "id": 3002893431,
+      "name": "Yoshimasa Hosoya",
+      "roles": [
+       "Cast: Musashi Miyamoto"
+      ],
+      "slug": "yoshimasa-hosoya"
+     },
+     {
+      "id": 3012934691,
+      "name": "Kenichiro Thomson",
+      "roles": [
+       "Cast: Musashi Miyamoto"
+      ],
+      "slug": "kenichiro-thomson"
+     },
+     {
+      "id": 3002462004,
+      "name": "Nobuhiko Okamoto",
+      "roles": [
+       "Cast: Sasaki Ganryu"
+      ],
+      "slug": "nobuhiko-okamoto"
+     },
+     {
+      "id": 3013863449,
+      "name": "Tashinga Bepete",
+      "roles": [
+       "Cast: Sasaki Ganryu"
+      ],
+      "slug": "tashinga-bepete"
+     },
+     {
+      "id": 3002594314,
+      "name": "Aya Endô",
+      "roles": [
+       "Cast"
+      ],
+      "slug": "aya-endo"
+     },
+     {
+      "id": 3002995522,
+      "name": "Yuriri Naka",
+      "roles": [
+       "Cast"
+      ],
+      "slug": "yuriri-naka"
+     },
+     {
+      "id": 3000411168,
+      "name": "Akihiko Ishizumi",
+      "roles": [
+       "Cast: Ono no Takamura"
+      ],
+      "slug": "akihiko-ishizumi"
+     },
+     {
+      "id": 3012211411,
+      "name": "Shogo Miyakita",
+      "roles": [
+       "Cast: Ono no Takamura"
+      ],
+      "slug": "shogo-miyakita"
+     },
+     {
+      "id": 3011708223,
+      "name": "Chiharu Hokaze",
+      "roles": [
+       "Cast: Izumo no Okuni"
+      ],
+      "slug": "chiharu-hokaze"
+     },
+     {
+      "id": 3011377908,
+      "name": "Leader Looi",
+      "roles": [
+       "Cast: Izumo no Okuni"
+      ],
+      "slug": "leader-looi"
+     },
+     {
+      "id": 3001399925,
+      "name": "Kenta Miyake",
+      "roles": [
+       "Cast: Daidara"
+      ],
+      "slug": "kenta-miyake"
+     },
+     {
+      "id": 3001544303,
+      "name": "Abe Jarman",
+      "roles": [
+       "Cast: Daidara"
+      ],
+      "slug": "abe-jarman"
+     },
+     {
+      "id": 3005650563,
+      "name": "Riho Fushida",
+      "roles": [
+       "Cast: Dokyo"
+      ],
+      "slug": "riho-fushida"
+     },
+     {
+      "id": 3001352940,
+      "name": "Clare Corbett",
+      "roles": [
+       "Cast: Dokyo"
+      ],
+      "slug": "clare-corbett"
+     },
+     {
+      "id": 3007554656,
+      "name": "Shinnosuke Ogami",
+      "roles": [
+       "Cast: Shuten Doji"
+      ],
+      "slug": "shinnosuke-ogami"
+     },
+     {
+      "id": 3000397928,
+      "name": "Anthony Howell",
+      "roles": [
+       "Cast: Shuten Doji"
+      ],
+      "slug": "anthony-howell"
+     },
+     {
+      "id": 3002942471,
+      "name": "Yasuhiro Mamiya",
+      "roles": [
+       "Cast: Rasho-gan"
+      ],
+      "slug": "yasuhiro-mamiya"
+     },
+     {
+      "id": 3001417704,
+      "name": "Adam Longworth",
+      "roles": [
+       "Cast: Rasho-gan"
+      ],
+      "slug": "adam-longworth"
+     },
+     {
+      "id": 3008183311,
+      "name": "James Macnaughton",
+      "roles": [
+       "Cast: Sword Student"
+      ],
+      "slug": "james-macnaughton"
+     },
+     {
+      "id": 3001517710,
+      "name": "Scott Joseph",
+      "roles": [
+       "Cast: Yoshioka Seijuro"
+      ],
+      "slug": "scott-joseph"
+     },
+     {
+      "id": 3012976315,
+      "name": "Jordan Whitby",
+      "roles": [
+       "Cast: Sword Student"
+      ],
+      "slug": "jordan-whitby"
+     },
+     {
+      "id": 3006462540,
+      "name": "Finnigan Morris",
+      "roles": [
+       "Cast: Genma,Sword Student"
+      ],
+      "slug": "finnigan-morris"
+     },
+     {
+      "id": 3016990135,
+      "name": "Akihito Kadowaki",
+      "roles": [
+       "Produced By: producer"
+      ],
+      "slug": "akihito-kadowaki"
+     },
+     {
+      "id": 3000974574,
+      "name": "Jun Takeuchi",
+      "roles": [
+       "Produced By: executive producer"
+      ],
+      "slug": "jun-takeuchi"
+     },
+     {
+      "id": 3013863449,
+      "name": "Tashinga Bepete",
+      "roles": [
+       "voice actor: Sasaki Ganryu"
+      ],
+      "slug": "tashinga-bepete"
+     },
+     {
+      "id": 3001544303,
+      "name": "Abe Jarman",
+      "roles": [
+       "voice actor: Daidara"
+      ],
+      "slug": "abe-jarman"
+     },
+     {
+      "id": 3011377908,
+      "name": "Leader Looi",
+      "roles": [
+       "voice actor: Izumo no Okuni"
+      ],
+      "slug": "leader-looi"
+     },
+     {
+      "id": 3008183311,
+      "name": "James Macnaughton",
+      "roles": [
+       "voice actor: Sword Student"
+      ],
+      "slug": "james-macnaughton"
+     },
+     {
+      "id": 3012211411,
+      "name": "Shogo Miyakita",
+      "roles": [
+       "voice actor: Ono no Takamura"
+      ],
+      "slug": "shogo-miyakita"
+     },
+     {
+      "id": 3006462540,
+      "name": "Finnigan Morris",
+      "roles": [
+       "voice actor: Genma/Sword Student"
+      ],
+      "slug": "finnigan-morris"
+     },
+     {
+      "id": 3002995522,
+      "name": "Yuriri Naka",
+      "roles": [
+       "voice actor: Oni Lady"
+      ],
+      "slug": "yuriri-naka"
+     },
+     {
+      "id": 3012934691,
+      "name": "Kenichiro Thomson",
+      "roles": [
+       "voice actor: Musashi Miyamoto"
+      ],
+      "slug": "kenichiro-thomson"
+     }
+    ]
+   },
+   "images": [
+    {
+     "id": "7-1781631527",
+     "filename": "7-1781631527.jpg",
+     "dateCreated": {
+      "date": null,
+      "timezone": null
+     },
+     "alt": null,
+     "credits": null,
+     "path": null,
+     "cropGravity": null,
+     "crop": null,
+     "caption": null,
+     "typeName": "mainImage",
+     "imageUrl": null,
+     "width": 1200,
+     "height": 630,
+     "sType": null,
+     "bucketType": "catalog",
+     "bucketPath": "/provider/7/2/7-1781631527.jpg",
+     "mediaType": null,
+     "provider": "7"
+    },
+    {
+     "id": "7-1781631535",
+     "filename": "7-1781631535.jpg",
+     "dateCreated": {
+      "date": null,
+      "timezone": null
+     },
+     "alt": null,
+     "credits": null,
+     "path": null,
+     "cropGravity": null,
+     "crop": null,
+     "caption": null,
+     "typeName": "cardImage",
+     "imageUrl": null,
+     "width": 226,
+     "height": 332,
+     "sType": null,
+     "bucketType": "catalog",
+     "bucketPath": "/provider/7/2/7-1781631535.jpg",
+     "mediaType": null,
+     "provider": "7"
+    }
+   ],
+   "video": {
+    "videoId": 10258416,
+    "slug": "onimusha-way-of-the-sword",
+    "title": "Onimusha: Way of the Sword - 4th Trailer: Musashi's Story",
+    "videoTitle": "Onimusha: Way of the Sword - 4th Trailer: Musashi's Story",
+    "duration": 126,
+    "providerId": null,
+    "type": null,
+    "contentType": null,
+    "contentTypeId": 0,
+    "url": null,
+    "description": null,
+    "originalAirDate": "2025-09-24T07:55:00.000+00:00",
+    "displayDatePublished": {
+     "date": "2025-09-24T07:55:00.000+00:00",
+     "timezone": null
+    },
+    "seasonNumber": null,
+    "episodeNumber": null,
+    "images": [],
+    "jwPlayerId": "Eibtv31Y",
+    "manifestUrl": "https://cdn.jwplayer.com/manifests/Eibtv31Y.m3u8",
+    "embedUrl": "https://cdn.jwplayer.com/players/Eibtv31Y.html"
+   },
+   "genres": [
+    {
+     "id": 2300654972,
+     "name": "Action Adventure"
+    }
+   ],
+   "rating": "M",
+   "countries": [
+    "North America",
+    "Japan",
+    "Europe",
+    "Australia"
+   ],
+   "platforms": [
+    {
+     "id": 1500000128,
+     "name": "PlayStation 5",
+     "criticScoreSummary": {
+      "url": "/game/onimusha-way-of-the-sword/critic-reviews/?platform=playstation-5",
+      "max": 100,
+      "score": 85,
+      "normalizedScore": 85.0202,
+      "reviewCount": 92,
+      "positiveCount": 82,
+      "neutralCount": 7,
+      "negativeCount": 0,
+      "sentiment": "Generally favorable"
+     },
+     "relatedGameId": 1400806383,
+     "isLeadPlatform": true,
+     "releaseDate": "2026-09-04",
+     "slug": "playstation-5"
+    },
+    {
+     "id": 1500000019,
+     "name": "PC",
+     "criticScoreSummary": {
+      "url": "/game/onimusha-way-of-the-sword/critic-reviews/?platform=pc",
+      "max": 100,
+      "score": 83,
+      "normalizedScore": 82.6053,
+      "reviewCount": 28,
+      "positiveCount": 26,
+      "neutralCount": 2,
+      "negativeCount": 0,
+      "sentiment": "Generally favorable"
+     },
+     "relatedGameId": 1400806384,
+     "isLeadPlatform": false,
+     "releaseDate": "2026-09-04",
+     "slug": "pc"
+    },
+    {
+     "id": 1500000129,
+     "name": "Xbox Series X",
+     "criticScoreSummary": {
+      "url": "/game/onimusha-way-of-the-sword/critic-reviews/?platform=xbox-series-x",
+      "max": 100,
+      "score": 83,
+      "normalizedScore": 82.8,
+      "reviewCount": 10,
+      "positiveCount": 9,
+      "neutralCount": 1,
+      "negativeCount": 0,
+      "sentiment": "Generally favorable"
+     },
+     "relatedGameId": 1400806385,
+     "isLeadPlatform": false,
+     "releaseDate": "2026-09-04",
+     "slug": "xbox-series-x"
+    },
+    {
+     "id": 1500000154,
+     "name": "Nintendo Switch 2",
+     "criticScoreSummary": {
+      "url": "/game/onimusha-way-of-the-sword/critic-reviews/?platform=nintendo-switch-2",
+      "max": 100,
+      "score": 89,
+      "normalizedScore": 89.2308,
+      "reviewCount": 12,
+      "positiveCount": 12,
+      "neutralCount": 0,
+      "negativeCount": 0,
+      "sentiment": "Generally favorable"
+     },
+     "relatedGameId": 1400919588,
+     "isLeadPlatform": false,
+     "releaseDate": "2026-09-04",
+     "slug": "nintendo-switch-2"
+    }
+   ],
+   "gameTaxonomy": {
+    "franchises": [
+     {
+      "id": 1100000322,
+      "name": "Onimusha"
+     }
+    ],
+    "family": {
+     "id": 1200654972,
+     "name": "Onimusha: Way of the Sword"
+    },
+    "title": {
+     "id": 1300662655,
+     "name": "Onimusha: Way of the Sword"
+    },
+    "game": {
+     "id": 1400806383,
+     "name": "Onimusha: Way of the Sword"
+    },
+    "platform": {
+     "id": 1500000128,
+     "name": "PlayStation 5"
+    }
+   }
+  }
+ },
+ "links": {
+  "self": {
+   "href": "https://backend.metacritic.com/games/metacritic/onimusha-way-of-the-sword/web?componentName=product&componentType=Product"
+  }
+ },
+ "meta": {
+  "componentName": "product",
+  "componentDisplayName": null,
+  "componentType": "Product"
+ }
+}
