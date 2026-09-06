@@ -1,0 +1,39 @@
+{# Блок счётчиков. Рендерится и в первичной странице, и в SSE-кадре `panel`:
+   разметка одна, поэтому обновление не может разойтись с первым рендером. #}
+<div class="tiles">
+  <div class="tile">
+    <span class="label">Воркер</span>
+    <b class="{{ 'run' if state.status == 'running' else '' }}">
+      {{ 'идёт заход' if state.status == 'running' else 'простой' }}
+      {%- if state.run_id %} #{{ state.run_id }}{% endif %}
+    </b>
+    <span class="muted">{{ 'вручную' if state.trigger == 'manual' else 'по расписанию' if state.trigger else '—' }}</span>
+  </div>
+  <div class="tile">
+    <span class="label">Сейчас</span>
+    <b>{{ state.current_game or '—' }}</b>
+    <span class="muted">в работе {{ state.in_flight | length }}</span>
+  </div>
+  <div class="tile">
+    <span class="label">День (UTC)</span>
+    <b>{{ state.day }}</b>
+    <span class="muted">фаза {{ state.phase }}, offset {{ state.browse_offset }}</span>
+  </div>
+  <div class="tile">
+    <span class="label">Игр за сегодня</span>
+    <b>{{ state.ok }} <span class="muted">/ {{ state.claimed }}</span></b>
+    <span class="muted">ошибок {{ state.failed }}, в работе {{ state.in_progress }}</span>
+  </div>
+  <div class="tile">
+    <span class="label">Вызовов LLM</span>
+    <b>{{ state.llm_calls }}</b>
+    <span class="muted">
+      {%- if state.llm_failures %}неудачных {{ state.llm_failures }}{% else %}без отказов{% endif -%}
+    </span>
+  </div>
+  <div class="tile">
+    <span class="label">Последнее событие</span>
+    <b>{{ state.last_event_at.strftime('%H:%M:%S') if state.last_event_at else '—' }}</b>
+    <span class="muted">UTC</span>
+  </div>
+</div>

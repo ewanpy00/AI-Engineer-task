@@ -1,5 +1,5 @@
-"""T-22/T-23/T-30: заход целиком — лока, счётчики, устойчивость к падению игры
-и подключённое к обходу резюме отзывов.
+"""T-22/T-23/T-30/T-35: заход целиком — лока, счётчики, устойчивость к падению
+игры, подключённое к обходу резюме отзывов и события мониторинга.
 
 HTTP подменён, БД настоящая: advisory-лока, строка в `runs` и статусы в
 `processed_games` — ровно то, ради чего задача и делалась. Игры берут id из
@@ -30,7 +30,9 @@ from app.clients.dto import (
 from app.clients.metacritic import MetacriticError
 from app.config import get_settings
 from app.db import dispose_engine, get_engine
+from app.events import Event, EventBus
 from app.ingest.runner import IngestRunner, advisory_lock
+from app.state import WorkerState
 from app.llm.schemas import LlmResult, ReviewSummaryOut
 from app.main import app
 from app.web import routes_admin
@@ -108,9 +110,20 @@ class FakeLlm:
                          prompt_version=f"review_summary_{audience}.v1", model="fake")
 
 
-def runner(client: FakeMetacritic | None = None, *, llm: FakeLlm | None = None) -> IngestRunner:
+def runner(
+    client: FakeMetacritic | None = None,
+    *,
+    llm: FakeLlm | None = None,
+    bus: EventBus | None = None,
+    state: WorkerState | None = None,
+) -> IngestRunner:
     """Заход с подменёнными Metacritic и LLM: в тестах сети нет ни там, ни там."""
-    return IngestRunner(client or FakeMetacritic(), llm=llm or FakeLlm())
+    return IngestRunner(
+        client or FakeMetacritic(),
+        llm=llm or FakeLlm(),
+        bus=bus or EventBus(),
+        state=state or WorkerState(),
+    )
 
 
 @pytest.fixture(autouse=True)
@@ -364,3 +377,70 @@ async def test_admin_run_conflicts_with_running_ingest(monkeypatch):
 
     assert response.status_code == 409
     assert not stub.started.is_set()
+
+
+async def test_run_publishes_events_for_every_step():
+    """T-35: заход рассказывает о себе — из этого потока живёт страница статуса."""
+    bus, state = EventBus(), WorkerState()
+    with bus.subscribe() as subscription:
+        result = await runner(bus=bus, state=state).run("manual")
+
+        seen = []
+        while (event := await subscription.next(0.05)) is not None:
+            seen.append(event)
+
+    kinds = [event.kind for event in seen]
+    assert kinds[0] == "run_started" and kinds[-1] == "run_finished"
+    assert kinds.count("game_started") == 3
+    assert kinds.count("game_done") == 2 and kinds.count("game_failed") == 1
+    assert kinds.count("llm_call") == 2  # у упавшей игры до модели дело не дошло
+
+    started = next(e for e in seen if e.kind == "run_started")
+    assert started.payload["run_id"] == result.run_id
+    assert started.payload["trigger"] == "manual"
+
+    failed = next(e for e in seen if e.kind == "game_failed")
+    assert failed.payload["slug"] == BROKEN_SLUG and "MetacriticError" in failed.payload["error"]
+
+    # то же самое видно и в состоянии: события двигают его, а не отдельный код
+    assert (state.status, state.run_id, state.current_game) == ("idle", None, None)
+    assert (state.claimed, state.ok, state.failed) == (3, 2, 1)
+    assert (state.llm_calls, state.llm_failures) == (4, 0)
+    assert state.day == TODAY
+
+    # подключившийся позже клиент берёт пропущенное из буфера шины
+    assert [e.kind for e in bus.recent(200)] == kinds
+
+
+async def test_state_shows_the_game_being_processed():
+    """`current_game` меняется по ходу захода, а не только в его конце."""
+    state = WorkerState()
+    seen: list[tuple[str, int]] = []
+
+    class WatchingLlm(FakeLlm):
+        async def summarize_reviews(self, **kwargs):
+            seen.append((state.current_game, state.ok))
+            return await super().summarize_reviews(**kwargs)
+
+    await runner(llm=WatchingLlm(), state=state, bus=EventBus()).run("manual")
+
+    # в момент вызова модели по игре она уже `ok`, но из «в работе» ещё не ушла
+    assert {title for title, _ in seen} <= {"ZZQ Run 0", "ZZQ Run 2"}
+    assert seen and all(title is not None for title, _ in seen)
+
+
+async def test_skipped_run_is_visible_but_does_not_reset_the_state():
+    """Кнопка, отбитая локой, оставляет след в ленте и не трогает идущий заход."""
+    bus, state = EventBus(), WorkerState()
+    state.apply(Event(kind="run_started", payload={"run_id": 1, "trigger": "schedule"}))
+
+    with bus.subscribe() as subscription:
+        async with advisory_lock() as acquired:
+            assert acquired
+            result = await runner(bus=bus, state=state).run("manual")
+
+        event = await subscription.next(0.05)
+
+    assert result.status == "skipped_locked"
+    assert event.kind == "run_finished" and event.payload["status"] == "skipped_locked"
+    assert (state.status, state.run_id) == ("running", 1)

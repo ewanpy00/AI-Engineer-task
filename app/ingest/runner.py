@@ -2,9 +2,14 @@
 
 Заход = advisory lock + фиксированный день + батч из селектора + обработка игр
 + строка в `runs`. Резюме отзывов (T-30) подключено внутрь `process_game`
-отдельным best-effort шагом; событий (T-37) и летсплея (T-45) здесь пока нет,
-они добавляются туда же и по тому же принципу: обогащение не решает судьбу
-игры в `processed_games`.
+отдельным best-effort шагом; летсплея (T-45) здесь пока нет, он добавляется
+туда же и по тому же принципу: обогащение не решает судьбу игры в
+`processed_games`.
+
+Каждый шаг захода публикует событие (T-35): одно и то же событие двигает
+`WorkerState` и уходит в SSE, поэтому счётчики на странице статуса и лента
+событий не могут разойтись. Мониторинг — наблюдатель: сбой публикации не
+имеет права ни уронить заход, ни изменить его исход.
 
 День фиксируется один раз на весь заход: обход, начавшийся в 23:59, должен
 целиком лечь в свои сутки, иначе claim и курсор разъедутся.
@@ -25,12 +30,14 @@ from sqlalchemy import text
 from app.clients.dto import CatalogItem, Product, ScoreStats
 from app.clients.metacritic import MetacriticClient
 from app.db import get_engine
+from app.events import Event, EventBus, EventKind, get_bus
 from app.ingest.day_cursor_repo import DayCursorRepo
 from app.ingest.processed_repo import ProcessedRepo
 from app.ingest.selector import BatchSelector
 from app.ingest.upsert import upsert_game
 from app.llm.gemini_client import GeminiClient, get_llm_client
 from app.llm.review_pipeline import Outcome, summarize_game_reviews
+from app.state import WorkerState, get_state
 
 log = logging.getLogger(__name__)
 
@@ -150,12 +157,16 @@ class IngestRunner:
         *,
         concurrency: int = CONCURRENCY,
         llm: GeminiClient | None = None,
+        bus: EventBus | None = None,
+        state: WorkerState | None = None,
     ) -> None:
         self._client = client
         self._cursors = cursor_repo or DayCursorRepo()
         self._processed = processed_repo or ProcessedRepo()
         self._concurrency = concurrency
         self._llm = llm
+        self._bus = bus or get_bus()
+        self._state = state or get_state()
 
     @property
     def client(self) -> MetacriticClient:
@@ -170,6 +181,20 @@ class IngestRunner:
             self._llm = get_llm_client()
         return self._llm
 
+    def _emit(self, kind: EventKind, **payload: object) -> None:
+        """Одно событие — один сдвиг состояния и одна строка в ленте.
+
+        Синхронно и без `await`: публикация не должна вклиниваться в обход
+        точкой переключения задач. Ошибка мониторинга гасится здесь же — заход
+        обязан доехать до конца, даже если страница статуса врёт.
+        """
+        try:
+            event = Event(kind=kind, payload=dict(payload))
+            self._state.apply(event)
+            self._bus.publish(event)
+        except Exception:  # noqa: BLE001 — наблюдатель не управляет обходом
+            log.exception("событие %s не опубликовано", kind)
+
     async def run(self, trigger: Trigger = "schedule") -> RunResult:
         day = datetime.now(UTC).date()
         async with advisory_lock() as acquired:
@@ -177,6 +202,13 @@ class IngestRunner:
                 log.info("заход %s пропущен: обход уже идёт", trigger)
                 async with get_engine().begin() as conn:
                     await conn.execute(_INSERT_SKIPPED, {"day": day, "trigger": trigger})
+                # run_id нет: заход не начинался. Состояние идущего захода такое
+                # событие не трогает, но в ленте отказ виден — иначе нажатая
+                # кнопка выглядела бы как «ничего не произошло».
+                self._emit(
+                    "run_finished", run_id=None, trigger=trigger, day=day,
+                    status="skipped_locked",
+                )
                 return RunResult(day=day, trigger=trigger, status="skipped_locked")
             return await self._run_locked(day, trigger)
 
@@ -184,6 +216,7 @@ class IngestRunner:
         async with get_engine().begin() as conn:
             run_id = int(await conn.scalar(_INSERT_RUN, {"day": day, "trigger": trigger}))
         log.info("заход #%s (%s) за %s начат", run_id, trigger, day)
+        self._emit("run_started", run_id=run_id, trigger=trigger, day=day)
 
         phase: str | None = None
         pages = claimed = ok = failed = 0
@@ -204,6 +237,10 @@ class IngestRunner:
                     _UPDATE_BATCH,
                     {"id": run_id, "phase": phase, "pages": pages, "claimed": claimed},
                 )
+            self._emit(
+                "counters", run_id=run_id, phase=phase, pages=pages, claimed=claimed,
+                browse_offset=batch.cursor_after.browse_offset,
+            )
 
             results = await self._process_all(batch.items, run_id, day)
             ok = sum(1 for r in results if r.ok)
@@ -227,6 +264,11 @@ class IngestRunner:
         log.info(
             "заход #%s завершён: %s, ok=%s failed=%s, вызовов LLM %s (неудачных %s)",
             run_id, status, ok, failed, llm.calls, llm.failures,
+        )
+        self._emit(
+            "run_finished", run_id=run_id, trigger=trigger, day=day, status=status,
+            ok=ok, failed=failed, llm_calls=llm.calls, llm_failures=llm.failures,
+            error=error,
         )
         return RunResult(
             day=day, trigger=trigger, status=status, run_id=run_id, phase=phase,
@@ -252,6 +294,7 @@ class IngestRunner:
         из часов внутри значит рискнуть тем, что игра заклеймлена вчера, а
         `finish` уедет в сегодня и статус останется висеть.
         """
+        self._emit("game_started", slug=item.slug, title=item.title, game_id=item.id, run_id=run_id)
         try:
             product = await self.client.get_product(item.slug)
             user_scores = await fetch_user_scores(self.client, product)
@@ -260,6 +303,7 @@ class IngestRunner:
             error = f"{type(exc).__name__}: {exc}"[:ERROR_LIMIT]
             log.warning("игра %s провалилась: %s", item.slug, error)
             await self._processed.finish(day, item.id, ok=False, error=error)
+            self._emit("game_failed", slug=item.slug, title=item.title, error=error)
             return GameResult(item=item, ok=False, error=error)
 
         # Статус проставляется до обогащения, а не после: каталожная часть уже
@@ -269,6 +313,16 @@ class IngestRunner:
         await self._processed.finish(day, item.id, ok=True)
 
         llm = await self._enrich(product, game_id, run_id)
+        if llm.calls:
+            self._emit(
+                "llm_call", slug=item.slug, title=item.title,
+                calls=llm.calls, failures=llm.failures,
+            )
+        # В ленте игра закрывается целиком, вместе с обогащением: ответа модели
+        # ждать дольше всего, и всё это время на странице статуса игра должна
+        # оставаться текущей. В `processed_games` статус проставлен раньше и
+        # означает другое — доехавшую до БД каталожную часть.
+        self._emit("game_done", slug=item.slug, title=item.title, game_id=game_id)
         return GameResult(item=item, ok=True, game_id=game_id, llm=llm)
 
     async def _enrich(self, product: Product, game_id: int, run_id: int) -> Outcome:
@@ -277,7 +331,7 @@ class IngestRunner:
         Пайплайн и сам ничего не бросает, но обёртка здесь всё равно нужна:
         `process_game` не имеет права уронить заход из-за обогащения, и это
         свойство не должно зависеть от аккуратности вызываемого кода. Сюда же
-        встанут похожие шаги — события (T-37) и летсплей (T-45).
+        встанет похожий шаг — летсплей (T-45).
         """
         lead = product.lead_platform
         try:

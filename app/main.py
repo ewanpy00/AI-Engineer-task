@@ -12,7 +12,8 @@ from app import db
 from app.config import get_settings
 from app.ingest.runner import close_runner, get_runner
 from app.scheduler import create_scheduler
-from app.web import routes_admin, routes_games
+from app.state import restore as restore_state
+from app.web import routes_admin, routes_games, routes_status
 from app.web.templating import templates  # noqa: F401  (инициализация Jinja2-окружения)
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(name)s: %(message)s")
@@ -22,6 +23,8 @@ log = logging.getLogger(__name__)
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     await db.apply_schema()
+    # События рестарт не переживают, дневные счётчики — обязаны (T-35).
+    await restore_state()
     scheduler = create_scheduler(get_runner()) if get_settings().scheduler_enabled else None
     if scheduler is not None:
         scheduler.start()
@@ -40,6 +43,7 @@ async def lifespan(app: FastAPI):
 app = FastAPI(title="Metacritic digest", lifespan=lifespan)
 app.include_router(routes_games.router)
 app.include_router(routes_admin.router)
+app.include_router(routes_status.router)
 
 
 @app.get("/healthz")

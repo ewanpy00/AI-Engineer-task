@@ -77,6 +77,17 @@ class DayCursorRepo:
     def engine(self) -> AsyncEngine:
         return self._engine or get_engine()
 
+    async def get(self, day: date) -> DayCursor | None:
+        """Курсор за `day`, если он уже есть. Ничего не создаёт.
+
+        Нужен восстановлению состояния воркера при старте (T-35): читать фазу и
+        offset процесс обязан, а заводить строку за сегодня раньше первого
+        захода — нет, иначе `runs_count=0` появлялся бы просто от рестарта.
+        """
+        async with self.engine.connect() as conn:
+            row = (await conn.execute(_SELECT, {"day": day})).one_or_none()
+        return _cursor(row) if row is not None else None
+
     async def get_or_create(self, day: date) -> DayCursor:
         """Курсор за `day`; первый вызов в сутки создаёт его (`phase='new_releases'`)."""
         async with self.engine.begin() as conn:

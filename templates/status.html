@@ -1,0 +1,101 @@
+{% extends "base.html" %}
+{% block title %}Статус — Metacritic digest{% endblock %}
+
+{% block head %}
+  <script src="https://unpkg.com/htmx-ext-sse@2.2.4/sse.js"></script>
+{% endblock %}
+
+{% block content %}
+  <h1>Статус воркера</h1>
+
+  {# Кнопка бьёт в ту же ручку, что и планировщик; токен подставлен сервером
+     (OQ-8). Ответ намеренно не подменяет разметку: что заход начался, видно в
+     ленте событий ниже, а не по перерисованному куску страницы. #}
+  <div class="run-row">
+    <button id="run-btn" hx-post="/admin/run" hx-swap="none"
+            hx-headers='{"X-Admin-Token": {{ admin_token | tojson }}}'>
+      Запустить обработку сейчас
+    </button>
+    <span id="run-result" class="muted"></span>
+  </div>
+
+  {# hx-ext на общей обёртке: внутри неё htmx сам держит EventSource и
+     переподключается при обрыве — своего JS для этого не нужно. #}
+  <div hx-ext="sse" sse-connect="/events">
+    <div id="panel" sse-swap="panel">{% include "_status_panel.html" %}</div>
+
+    <h2>Лента событий</h2>
+    <ul id="feed" sse-swap="feed" hx-swap="afterbegin">
+      {% for event in events %}{% include "_status_event.html" %}{% endfor %}
+      {% if not events %}<li class="muted">Событий пока не было: буфер живёт в памяти и очищается при рестарте.</li>{% endif %}
+    </ul>
+  </div>
+
+  <h2>Последние заходы</h2>
+  {# Журнал читается из БД при открытии страницы: строка `runs` меняется дважды
+     за заход, realtime здесь ничего не добавит — обновляется перезагрузкой. #}
+  <table class="runs">
+    <thead>
+      <tr><th>#</th><th>День</th><th>Запуск</th><th>Статус</th><th>Фаза</th>
+          <th>Игр</th><th>LLM</th><th>Начат</th><th>Длительность</th></tr>
+    </thead>
+    <tbody>
+      {% for run in runs %}
+        <tr class="run-{{ run.status }}">
+          <td>{{ run.id }}</td>
+          <td>{{ run.day }}</td>
+          <td>{{ 'вручную' if run.trigger == 'manual' else 'план' }}</td>
+          <td>{{ run.status }}{% if run.error %}<div class="muted err">{{ run.error }}</div>{% endif %}</td>
+          <td>{{ run.phase or '—' }}</td>
+          <td>{{ run.games_ok }}/{{ run.games_claimed }}{% if run.games_failed %}, ош. {{ run.games_failed }}{% endif %}</td>
+          <td>{{ run.llm_calls }}{% if run.llm_failures %} / отказов {{ run.llm_failures }}{% endif %}</td>
+          <td>{{ run.started_at.strftime('%d.%m %H:%M:%S') }}</td>
+          <td>{{ '%.0f с' | format((run.finished_at - run.started_at).total_seconds()) if run.finished_at else '—' }}</td>
+        </tr>
+      {% else %}
+        <tr><td colspan="9" class="muted">Заходов ещё не было.</td></tr>
+      {% endfor %}
+    </tbody>
+  </table>
+
+  <script>
+    // htmx не подменяет ответы с кодом 4xx, а 409 «заход уже идёт» и 401 —
+    // это нормальные ответы кнопки, и показать их надо. Дешевле трёх строк
+    // здесь только целое расширение response-targets.
+    document.body.addEventListener('htmx:afterRequest', (e) => {
+      if (e.detail.pathInfo.requestPath !== '/admin/run') return;
+      const codes = {202: 'Заход запущен', 409: 'Заход уже идёт', 401: 'Неверный admin-токен'};
+      document.getElementById('run-result').textContent =
+        codes[e.detail.xhr.status] || ('Ошибка ' + e.detail.xhr.status);
+    });
+  </script>
+
+  <style>
+    h2 { font-size:16px; margin:26px 0 10px; }
+    .run-row { display:flex; align-items:center; gap:12px; margin:0 0 20px; }
+    #run-btn { font:inherit; padding:8px 14px; border-radius:8px; cursor:pointer;
+               border:1px solid var(--line); background:var(--card); color:var(--fg); }
+    #run-btn:hover { border-color:var(--muted); }
+    .tiles { display:grid; gap:12px; grid-template-columns:repeat(auto-fit, minmax(170px, 1fr)); }
+    .tile { background:var(--card); border:1px solid var(--line); border-radius:10px;
+            padding:10px 12px; display:flex; flex-direction:column; gap:2px; min-width:0; }
+    .tile .label { font-size:12px; text-transform:uppercase; letter-spacing:.04em; color:var(--muted); }
+    .tile b { font-size:16px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+    .tile b.run { color:#2e9e5b; }
+    .tile .muted { font-size:13px; }
+    #feed { list-style:none; margin:0; padding:0; max-height:420px; overflow-y:auto;
+            border:1px solid var(--line); border-radius:10px; background:var(--card); }
+    .ev { display:flex; gap:8px; align-items:baseline; padding:5px 12px; font-size:14px;
+          border-bottom:1px solid var(--line); }
+    .ev:last-child { border-bottom:none; }
+    .ev time { color:var(--muted); font-variant-numeric:tabular-nums; font-size:13px; }
+    .ev-run_started, .ev-run_finished { background:color-mix(in srgb, var(--line) 40%, transparent); }
+    .mark.ok { color:#2e9e5b; }
+    .mark.fail, .fail { color:#c8443c; }
+    .runs { border-collapse:collapse; width:100%; font-size:14px; }
+    .runs th, .runs td { text-align:left; padding:6px 10px; border-bottom:1px solid var(--line);
+                         vertical-align:top; }
+    .runs th { font-size:12px; text-transform:uppercase; letter-spacing:.04em; color:var(--muted); }
+    .runs .err { max-width:340px; overflow-wrap:anywhere; }
+  </style>
+{% endblock %}
