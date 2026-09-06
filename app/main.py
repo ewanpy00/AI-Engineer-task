@@ -2,21 +2,39 @@
 
 from __future__ import annotations
 
+import logging
 from contextlib import asynccontextmanager
 
 from fastapi import FastAPI
 from fastapi.responses import JSONResponse
 
 from app import db
+from app.config import get_settings
+from app.ingest.runner import close_runner, get_runner
+from app.scheduler import create_scheduler
 from app.web import routes_admin, routes_games
 from app.web.templating import templates  # noqa: F401  (инициализация Jinja2-окружения)
+
+logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(name)s: %(message)s")
+log = logging.getLogger(__name__)
 
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     await db.apply_schema()
-    yield
-    await db.dispose_engine()
+    scheduler = create_scheduler(get_runner()) if get_settings().scheduler_enabled else None
+    if scheduler is not None:
+        scheduler.start()
+        log.info("планировщик запущен: cron 0 * * * * UTC")
+    try:
+        yield
+    finally:
+        if scheduler is not None:
+            # wait=False: идущий заход всё равно оборвётся вместе с процессом,
+            # claim за ним останется — переобработка будет завтра (ADR-6)
+            scheduler.shutdown(wait=False)
+        await close_runner()
+        await db.dispose_engine()
 
 
 app = FastAPI(title="Metacritic digest", lifespan=lifespan)

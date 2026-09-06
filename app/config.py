@@ -42,6 +42,9 @@ class Settings(BaseSettings):
 
     database_url: str
     admin_token: str = "dev"
+    # выключается на время локальных прогонов и тестов, чтобы плановый заход
+    # не стартовал посреди ручного (T-48)
+    scheduler_enabled: bool = True
     google_api_key: str = ""
     ya300_session_id: str = ""
 
