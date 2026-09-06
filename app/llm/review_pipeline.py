@@ -81,6 +81,22 @@ _SELECT_EXISTING = sql(
 
 
 @dataclass(frozen=True)
+class Outcome:
+    """Сколько раз по этой игре реально сходили в модель и сколько раз мимо.
+
+    Нужен вызывающему (T-32) ровно для `runs.llm_calls`/`runs.llm_failures`:
+    пропуск по `quotes_hash` и `no_data` вызовом не считаются — иначе счётчик
+    на странице статуса показывал бы работу, которой не было.
+    """
+
+    calls: int = 0
+    failures: int = 0
+
+    def __add__(self, other: "Outcome") -> "Outcome":
+        return Outcome(self.calls + other.calls, self.failures + other.failures)
+
+
+@dataclass(frozen=True)
 class Collected:
     """Цитаты, отобранные для одного вызова модели."""
 
@@ -162,7 +178,7 @@ async def summarize_game_reviews(
     client: MetacriticClient | None = None,
     llm: GeminiClient | None = None,
     run_id: int | None = None,
-) -> None:
+) -> Outcome:
     """Резюме отзывов одной игры: две аудитории, две строки в `review_summaries`.
 
     Наружу не бросает ничего: вызывается из `process_game` (T-32), где игра уже
@@ -172,19 +188,20 @@ async def summarize_game_reviews(
         # Рубильник для прогонов каталога без LLM: строк не пишем вовсе, чтобы
         # не пометить игру `llm_failed` там, где вызова просто не было.
         log.debug("LLM выключен (LLM_ENABLED=false): резюме %s пропущено", slug)
-        return
+        return Outcome()
 
     if lead_platform_slug is None:
         # Отзывы берутся только по ведущей платформе (11-decisions.md). Без неё
         # непонятно, чьи отзывы читать, — строку не пишем вовсе.
         log.info("игра %s без ведущей платформы: резюме отзывов пропущено", slug)
-        return
+        return Outcome()
 
     client = client or MetacriticClient()
     llm = llm or get_llm_client()
+    total = Outcome()
     for audience in AUDIENCES:
         try:
-            await _summarize_audience(
+            total += await _summarize_audience(
                 game_id, slug, lead_platform_slug, title, audience,
                 client=client, llm=llm, run_id=run_id,
             )
@@ -192,6 +209,7 @@ async def summarize_game_reviews(
             error = f"{type(exc).__name__}: {exc}"[:ERROR_LIMIT]
             log.warning("резюме %s/%s не собрано: %s", slug, audience, error)
             await _save_failure(game_id, audience, lead_platform_slug, error)
+    return total
 
 
 async def _summarize_audience(
@@ -204,7 +222,7 @@ async def _summarize_audience(
     client: MetacriticClient,
     llm: GeminiClient,
     run_id: int | None,
-) -> None:
+) -> Outcome:
     collected = await collect_quotes(client, slug, platform_slug, audience)
     if collected.is_empty:
         # Ни подборки, ни списка — модель звать не на чем (design §5.5).
@@ -212,12 +230,12 @@ async def _summarize_audience(
             game_id=game_id, audience=audience, platform_slug=platform_slug,
             status="no_data", source=None, quotes_count=0, quotes_hash=None,
         )
-        return
+        return Outcome()
 
     digest = quotes_hash(collected.quotes)
     if await _already_summarized(game_id, audience, digest):
         log.debug("резюме %s/%s актуально: набор цитат не менялся", slug, audience)
-        return
+        return Outcome()
 
     result = await llm.summarize_reviews(
         audience=audience,
@@ -236,7 +254,7 @@ async def _summarize_audience(
             prompt_version=result.prompt_version, model=result.model,
             error=result.error,
         )
-        return
+        return Outcome(calls=1, failures=1)
 
     summary: ReviewSummaryOut = result.value
     await _save(
@@ -245,6 +263,7 @@ async def _summarize_audience(
         quotes_hash=digest, summary=summary,
         prompt_version=result.prompt_version, model=result.model,
     )
+    return Outcome(calls=1)
 
 
 async def _already_summarized(game_id: int, audience: Audience, digest: str) -> bool:

@@ -1,4 +1,5 @@
-"""T-22/T-23: заход целиком — лока, счётчики, устойчивость к падению игры.
+"""T-22/T-23/T-30: заход целиком — лока, счётчики, устойчивость к падению игры
+и подключённое к обходу резюме отзывов.
 
 HTTP подменён, БД настоящая: advisory-лока, строка в `runs` и статусы в
 `processed_games` — ровно то, ради чего задача и делалась. Игры берут id из
@@ -17,11 +18,20 @@ import pytest
 import sqlalchemy.exc
 from sqlalchemy import text
 
-from app.clients.dto import BrowsePage, CatalogItem, PlatformInfo, Product, ScoreStats
+from app.clients.dto import (
+    BrowsePage,
+    CatalogItem,
+    PlatformInfo,
+    Product,
+    Quote,
+    ReviewQuotes,
+    ScoreStats,
+)
 from app.clients.metacritic import MetacriticError
 from app.config import get_settings
 from app.db import dispose_engine, get_engine
 from app.ingest.runner import IngestRunner, advisory_lock
+from app.llm.schemas import LlmResult, ReviewSummaryOut
 from app.main import app
 from app.web import routes_admin
 
@@ -62,8 +72,45 @@ class FakeMetacritic:
     async def get_score_stats(self, slug: str, platform_slug: str, audience: str):
         return ScoreStats(score=7.5, count=10, sentiment="generally favorable")
 
+    async def get_review_summary(self, slug: str, platform_slug: str, audience: str):
+        return ReviewQuotes(
+            positive=[Quote(text=f"great {slug}", bucket="positive")],
+            negative=[Quote(text=f"buggy {slug}", bucket="negative")],
+        )
+
+    async def list_reviews(self, slug, platform_slug, audience, offset=0, limit=50):
+        return []
+
     async def aclose(self) -> None:
         return None
+
+
+SUMMARY = ReviewSummaryOut(liked=["раз", "два"], disliked=["три"], tldr="Итог.")
+
+
+class FakeLlm:
+    """Адаптер LLM без сети: считает вызовы, при `ok=False` всегда отказывает."""
+
+    def __init__(self, *, ok: bool = True) -> None:
+        self.ok = ok
+        self.calls: list[str] = []
+        self.resets = 0
+
+    def reset_breaker(self) -> None:
+        self.resets += 1
+
+    async def summarize_reviews(self, *, audience, game_title, quotes, context=None):
+        self.calls.append(f"{context['slug']}/{audience}")
+        if not self.ok:
+            return LlmResult(ok=False, error="403 PERMISSION_DENIED",
+                             prompt_version=f"review_summary_{audience}.v1", model="fake")
+        return LlmResult(ok=True, value=SUMMARY,
+                         prompt_version=f"review_summary_{audience}.v1", model="fake")
+
+
+def runner(client: FakeMetacritic | None = None, *, llm: FakeLlm | None = None) -> IngestRunner:
+    """Заход с подменёнными Metacritic и LLM: в тестах сети нет ни там, ни там."""
+    return IngestRunner(client or FakeMetacritic(), llm=llm or FakeLlm())
 
 
 @pytest.fixture(autouse=True)
@@ -123,7 +170,7 @@ async def fetch_run(run_id: int):
 
 async def test_run_survives_a_failing_game():
     """Падение одной игры не роняет заход: остальные доезжают до БД."""
-    result = await IngestRunner(FakeMetacritic()).run("manual")
+    result = await runner().run("manual")
 
     assert result.status == "ok"
     assert (result.games_claimed, result.games_ok, result.games_failed) == (3, 2, 1)
@@ -153,10 +200,101 @@ async def test_run_survives_a_failing_game():
     assert stored == 2
 
 
+async def summaries() -> dict[tuple[int, str], dict]:
+    async with get_engine().connect() as conn:
+        rows = (
+            await conn.execute(
+                text("SELECT * FROM review_summaries WHERE game_id >= :id"), {"id": BASE_ID}
+            )
+        ).mappings().all()
+    return {(row["game_id"], row["audience"]): dict(row) for row in rows}
+
+
+async def test_run_fills_review_summaries_without_a_separate_call():
+    """Резюме собирается внутри обхода: отдельно пайплайн никто не дёргает."""
+    llm = FakeLlm()
+
+    result = await runner(llm=llm).run("manual")
+
+    rows = await summaries()
+    # две успешные игры × две аудитории; упавшая на get_product резюме не получает
+    assert len(rows) == 4
+    assert {row["status"] for row in rows.values()} == {"ok"}
+    assert rows[(BASE_ID, "critic")]["liked"] == SUMMARY.liked
+    assert rows[(BASE_ID, "user")]["tldr"] == SUMMARY.tldr
+    assert sorted(llm.calls) == [
+        "zzq-run-0/critic", "zzq-run-0/user", "zzq-run-2/critic", "zzq-run-2/user",
+    ]
+    assert (result.llm_calls, result.llm_failures) == (4, 0)
+
+    run_row = await fetch_run(result.run_id)
+    assert (run_row.llm_calls, run_row.llm_failures) == (4, 0)
+
+
+async def test_broken_llm_does_not_change_the_game_status():
+    """design §5.5: отказ LLM никогда не роняет обход каталога."""
+    llm = FakeLlm(ok=False)
+
+    result = await runner(llm=llm).run("manual")
+
+    assert result.status == "ok"
+    assert (result.games_ok, result.games_failed) == (2, 1)  # ровно как без LLM
+    assert (result.llm_calls, result.llm_failures) == (4, 4)
+
+    async with get_engine().connect() as conn:
+        statuses = dict(
+            (row.game_id, row.status)
+            for row in (
+                await conn.execute(
+                    text("SELECT game_id, status FROM processed_games WHERE game_id >= :id"),
+                    {"id": BASE_ID},
+                )
+            ).all()
+        )
+    assert statuses[BASE_ID] == "ok" and statuses[BASE_ID + 2] == "ok"
+    assert {row["status"] for row in (await summaries()).values()} == {"llm_failed"}
+
+
+async def test_pipeline_crash_leaves_the_game_ok():
+    """Необработанное исключение внутри обогащения — не приговор игре."""
+
+    class Exploding(FakeLlm):
+        async def summarize_reviews(self, **kwargs):
+            raise RuntimeError("адаптер сломан по-настоящему")
+
+    result = await runner(llm=Exploding()).run("manual")
+
+    assert result.status == "ok" and result.games_ok == 2
+    # пайплайн ловит сбой сам и помечает аудиторию как невыполненную работу
+    assert {row["status"] for row in (await summaries()).values()} == {"llm_failed"}
+
+
+async def test_breaker_is_reset_at_the_start_of_every_run():
+    """Circuit breaker живёт один заход: провайдер мог подняться за час."""
+    llm = FakeLlm()
+    ingest = runner(llm=llm)
+
+    await ingest.run("manual")
+    await ingest.run("schedule")
+
+    assert llm.resets == 2
+
+
+async def test_llm_is_skipped_when_disabled(monkeypatch):
+    """LLM_ENABLED=false — прогон каталога без резюме и без строк llm_failed."""
+    monkeypatch.setattr(get_settings(), "llm_enabled", False, raising=False)
+    llm = FakeLlm()
+
+    result = await runner(llm=llm).run("manual")
+
+    assert result.games_ok == 2 and result.llm_calls == 0
+    assert llm.calls == [] and await summaries() == {}
+
+
 async def test_second_parallel_run_is_skipped():
     """Две одновременные корутины: вторая уходит по advisory-локе, БД игр не трогает."""
-    runner = IngestRunner(FakeMetacritic())
-    first, second = await asyncio.gather(runner.run("schedule"), runner.run("manual"))
+    ingest = runner()
+    first, second = await asyncio.gather(ingest.run("schedule"), ingest.run("manual"))
 
     statuses = sorted([first.status, second.status])
     assert statuses == ["ok", "skipped_locked"]
@@ -172,17 +310,17 @@ async def test_second_parallel_run_is_skipped():
 
 
 async def test_empty_batch_is_logged_as_empty():
-    result = await IngestRunner(FakeMetacritic(count=0)).run("schedule")
+    result = await runner(FakeMetacritic(count=0)).run("schedule")
     assert result.status == "empty"
     assert (await fetch_run(result.run_id)).status == "empty"
 
 
 async def test_is_locked_reports_running_ingest():
-    runner = IngestRunner(FakeMetacritic())
-    assert await runner.is_locked() is False
+    ingest = runner()
+    assert await ingest.is_locked() is False
     async with advisory_lock() as acquired:
         assert acquired is True
-        assert await runner.is_locked() is True
+        assert await ingest.is_locked() is True
 
 
 class StubRunner:

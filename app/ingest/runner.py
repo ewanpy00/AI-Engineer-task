@@ -1,9 +1,10 @@
 """Оркестратор одного захода (T-22, design §2.3, §4.3).
 
 Заход = advisory lock + фиксированный день + батч из селектора + обработка игр
-+ строка в `runs`. Ни LLM-резюме (T-32), ни похожих игр, ни событий (T-37), ни
-летсплея (T-45) здесь пока нет: они подключаются внутрь `process_game`
-отдельными best-effort шагами.
++ строка в `runs`. Резюме отзывов (T-30) подключено внутрь `process_game`
+отдельным best-effort шагом; событий (T-37) и летсплея (T-45) здесь пока нет,
+они добавляются туда же и по тому же принципу: обогащение не решает судьбу
+игры в `processed_games`.
 
 День фиксируется один раз на весь заход: обход, начавшийся в 23:59, должен
 целиком лечь в свои сутки, иначе claim и курсор разъедутся.
@@ -28,6 +29,8 @@ from app.ingest.day_cursor_repo import DayCursorRepo
 from app.ingest.processed_repo import ProcessedRepo
 from app.ingest.selector import BatchSelector
 from app.ingest.upsert import upsert_game
+from app.llm.gemini_client import GeminiClient, get_llm_client
+from app.llm.review_pipeline import Outcome, summarize_game_reviews
 
 log = logging.getLogger(__name__)
 
@@ -50,6 +53,9 @@ class GameResult:
     ok: bool
     game_id: int | None = None
     error: str | None = None
+    # обогащение считается отдельно от `ok`: игра остаётся успешной, даже если
+    # модель не ответила (design §5.5)
+    llm: Outcome = Outcome()
 
 
 @dataclass(frozen=True)
@@ -63,6 +69,8 @@ class RunResult:
     games_claimed: int = 0
     games_ok: int = 0
     games_failed: int = 0
+    llm_calls: int = 0
+    llm_failures: int = 0
     error: str | None = None
 
 
@@ -82,6 +90,7 @@ _FINISH_RUN = text(
     UPDATE runs SET
         status = :status, phase = :phase, pages_fetched = :pages,
         games_claimed = :claimed, games_ok = :ok, games_failed = :failed,
+        llm_calls = :llm_calls, llm_failures = :llm_failures,
         finished_at = now(), error = :error
     WHERE id = :id
     """
@@ -140,17 +149,26 @@ class IngestRunner:
         processed_repo: ProcessedRepo | None = None,
         *,
         concurrency: int = CONCURRENCY,
+        llm: GeminiClient | None = None,
     ) -> None:
         self._client = client
         self._cursors = cursor_repo or DayCursorRepo()
         self._processed = processed_repo or ProcessedRepo()
         self._concurrency = concurrency
+        self._llm = llm
 
     @property
     def client(self) -> MetacriticClient:
         if self._client is None:
             self._client = MetacriticClient()
         return self._client
+
+    @property
+    def llm(self) -> GeminiClient:
+        """Адаптер LLM создаётся лениво: заход без резюме ключа не требует."""
+        if self._llm is None:
+            self._llm = get_llm_client()
+        return self._llm
 
     async def run(self, trigger: Trigger = "schedule") -> RunResult:
         day = datetime.now(UTC).date()
@@ -169,8 +187,12 @@ class IngestRunner:
 
         phase: str | None = None
         pages = claimed = ok = failed = 0
+        llm = Outcome()
         status: RunStatus = "failed"
         error: str | None = None
+        # Circuit breaker живёт один заход (design §5.5): провайдер, лежавший
+        # час назад, к этому часу мог подняться, и новый заход обязан попробовать.
+        self.llm.reset_breaker()
         try:
             selector = BatchSelector(self.client, self._cursors, self._processed)
             batch = await selector.next_batch(day, run_id)
@@ -186,6 +208,7 @@ class IngestRunner:
             results = await self._process_all(batch.items, run_id, day)
             ok = sum(1 for r in results if r.ok)
             failed = len(results) - ok
+            llm = sum((r.llm for r in results), Outcome())
             status = "ok" if batch.items else "empty"
         except Exception as exc:  # noqa: BLE001 — заход не должен уронить процесс
             error = f"{type(exc).__name__}: {exc}"[:ERROR_LIMIT]
@@ -197,14 +220,18 @@ class IngestRunner:
                     {
                         "id": run_id, "status": status, "phase": phase, "pages": pages,
                         "claimed": claimed, "ok": ok, "failed": failed, "error": error,
+                        "llm_calls": llm.calls, "llm_failures": llm.failures,
                     },
                 )
 
-        log.info("заход #%s завершён: %s, ok=%s failed=%s", run_id, status, ok, failed)
+        log.info(
+            "заход #%s завершён: %s, ok=%s failed=%s, вызовов LLM %s (неудачных %s)",
+            run_id, status, ok, failed, llm.calls, llm.failures,
+        )
         return RunResult(
             day=day, trigger=trigger, status=status, run_id=run_id, phase=phase,
             pages_fetched=pages, games_claimed=claimed, games_ok=ok, games_failed=failed,
-            error=error,
+            llm_calls=llm.calls, llm_failures=llm.failures, error=error,
         )
 
     async def _process_all(
@@ -235,8 +262,39 @@ class IngestRunner:
             await self._processed.finish(day, item.id, ok=False, error=error)
             return GameResult(item=item, ok=False, error=error)
 
+        # Статус проставляется до обогащения, а не после: каталожная часть уже
+        # доехала до БД, и падение процесса посреди вызова LLM должно оставить
+        # честный `ok`, а не игру, навсегда зависшую в `claimed` (переклеймить
+        # её сегодня уже нельзя — ADR-6, а T-49 забирает только `failed`).
         await self._processed.finish(day, item.id, ok=True)
-        return GameResult(item=item, ok=True, game_id=game_id)
+
+        llm = await self._enrich(product, game_id, run_id)
+        return GameResult(item=item, ok=True, game_id=game_id, llm=llm)
+
+    async def _enrich(self, product: Product, game_id: int, run_id: int) -> Outcome:
+        """Best-effort обогащение игры: резюме отзывов (T-30).
+
+        Пайплайн и сам ничего не бросает, но обёртка здесь всё равно нужна:
+        `process_game` не имеет права уронить заход из-за обогащения, и это
+        свойство не должно зависеть от аккуратности вызываемого кода. Сюда же
+        встанут похожие шаги — события (T-37) и летсплей (T-45).
+        """
+        lead = product.lead_platform
+        try:
+            return await summarize_game_reviews(
+                game_id,
+                product.slug,
+                lead.slug if lead else None,
+                product.title,
+                # тот же клиент Metacritic: отзывы должны идти через общий
+                # лимитер в 1 rps, а не мимо него
+                client=self.client,
+                llm=self.llm,
+                run_id=run_id,
+            )
+        except Exception:  # noqa: BLE001 — игра уже `ok`, резюме дозаполнится позже
+            log.exception("резюме отзывов для %s не собрано", product.slug)
+            return Outcome()
 
     async def is_locked(self) -> bool:
         """Быстрая проверка «заход уже идёт» для ответа 409 (T-23).
