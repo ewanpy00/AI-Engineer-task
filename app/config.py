@@ -2,10 +2,37 @@
 
 from functools import lru_cache
 from pathlib import Path
+from urllib.parse import parse_qsl, urlencode, urlsplit, urlunsplit
 
+from pydantic import field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 BASE_DIR = Path(__file__).resolve().parent.parent
+
+
+def normalize_database_url(url: str) -> str:
+    """Приводит DATABASE_URL к виду, который понимает async-движок.
+
+    Railway отдаёт переменную Postgres-аддона в libpq-форме `postgresql://…`:
+    SQLAlchemy выбрал бы по ней синхронный psycopg2, которого в образе нет.
+    Параметр `sslmode` — тоже из libpq, asyncpg его не знает и падает на
+    `connect() got an unexpected keyword argument`; TLS ему задаётся как `ssl`.
+    """
+    for prefix in ("postgresql://", "postgres://"):
+        if url.startswith(prefix):
+            url = "postgresql+asyncpg://" + url[len(prefix) :]
+            break
+
+    split = urlsplit(url)
+    params = parse_qsl(split.query, keep_blank_values=True)
+    if not any(key == "sslmode" for key, _ in params):
+        return url
+
+    kept = [(key, value) for key, value in params if key != "sslmode"]
+    sslmode = next(value for key, value in params if key == "sslmode")
+    if sslmode != "disable" and not any(key == "ssl" for key, _ in kept):
+        kept.append(("ssl", "require" if sslmode != "allow" else "prefer"))
+    return urlunsplit(split._replace(query=urlencode(kept)))
 
 
 class Settings(BaseSettings):
@@ -29,6 +56,11 @@ class Settings(BaseSettings):
 
     schema_path: Path = BASE_DIR / "schema.sql"
     templates_dir: Path = BASE_DIR / "templates"
+
+    @field_validator("database_url")
+    @classmethod
+    def _normalize_database_url(cls, value: str) -> str:
+        return normalize_database_url(value)
 
 
 @lru_cache
