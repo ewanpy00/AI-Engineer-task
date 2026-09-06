@@ -172,6 +172,30 @@ async def get_review_summaries(game_id: int) -> dict[str, dict[str, Any]]:
     return {row["audience"]: dict(row) for row in rows}
 
 
+# Летсплей (T-44). `retelling` выбираем: карточка показывает его под
+# заключением (OQ-10, решение владельца «в карточке показываем пересказ и
+# ссылку на исходный ролик»).
+_GAME_LETSPLAY = text(
+    """
+    SELECT status, video_id, video_url, video_title, channel, view_count,
+           retelling, conclusion, attempts, last_attempt_at
+    FROM letsplays
+    WHERE game_id = :game_id
+    """
+)
+
+
+async def get_letsplay(game_id: int) -> dict[str, Any] | None:
+    """Строка `letsplays` или `None`, если игру ещё не обогащали.
+
+    Статус отдаётся как есть: решение «показывать блок или нет» принимает
+    шаблон, а не запрос (`not_found`/`service_error` рисовать нечем).
+    """
+    async with get_engine().connect() as conn:
+        row = (await conn.execute(_GAME_LETSPLAY, {"game_id": game_id})).mappings().first()
+    return dict(row) if row is not None else None
+
+
 async def get_game(slug: str) -> dict[str, Any] | None:
     """Игра со всеми платформами для `/game/{slug}` или `None`, если её нет."""
     async with get_engine().connect() as conn:

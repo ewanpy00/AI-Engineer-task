@@ -11,6 +11,7 @@ from app.similar import list_similar
 from app.web.repo_games import (
     DEFAULT_SORT,
     get_game,
+    get_letsplay,
     get_review_summaries,
     list_games,
     list_platforms,
@@ -92,9 +93,9 @@ async def game_card(request: Request, slug: str):
     game = await get_game(slug)
     if game is None:
         raise HTTPException(status_code=404, detail="game not found")
-    # Летсплей (T-46) — отдельный блок той же страницы, место под него размечено
-    # в шаблоне. Резюме и похожие читаются из БД: модель в HTTP-запросе не
-    # вызывается никогда (design §5.1), похожие считаются SQL-запросом (ADR-4).
+    # Всё содержимое карточки читается из БД: модель в HTTP-запросе не
+    # вызывается никогда (design §5.1), похожие считаются SQL-запросом (ADR-4),
+    # летсплей собирается на обходе (T-44).
     return templates.TemplateResponse(
         request,
         "game_card.html",
@@ -102,5 +103,6 @@ async def game_card(request: Request, slug: str):
             "game": game,
             "summaries": await get_review_summaries(game["id"]),
             "similar": await list_similar(game["id"]),
+            "letsplay": await get_letsplay(game["id"]),
         },
     )

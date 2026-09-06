@@ -30,5 +30,15 @@ def query_string(**params: object) -> str:
     return "?" + urlencode(pairs) if pairs else ""
 
 
+def views(count: int | None) -> str:
+    """`1234567` -> `1 234 567`: число просмотров летсплея (T-44).
+
+    Без разделителя разрядов семизначное число читается как случайный набор
+    цифр. Разделитель — тонкий пробел, чтобы строка не переносилась по нему.
+    """
+    return f"{count:,}".replace(",", "\u2009") if isinstance(count, int) else ""
+
+
 templates.env.globals["cover_url"] = cover_url
 templates.env.globals["query_string"] = query_string
+templates.env.filters["views"] = views

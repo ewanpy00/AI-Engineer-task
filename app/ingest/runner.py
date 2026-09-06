@@ -1,10 +1,9 @@
 """Оркестратор одного захода (T-22, design §2.3, §4.3).
 
 Заход = advisory lock + фиксированный день + батч из селектора + обработка игр
-+ строка в `runs`. Резюме отзывов (T-30) подключено внутрь `process_game`
-отдельным best-effort шагом; летсплея (T-45) здесь пока нет, он добавляется
-туда же и по тому же принципу: обогащение не решает судьбу игры в
-`processed_games`.
++ строка в `runs`. Резюме отзывов (T-30) и летсплей (T-44) подключены внутрь
+`process_game` отдельными best-effort шагами по одному принципу: обогащение не
+решает судьбу игры в `processed_games` и не имеет права уронить заход.
 
 Каждый шаг захода публикует событие (T-35): одно и то же событие двигает
 `WorkerState` и уходит в SSE, поэтому счётчики на странице статуса и лента
@@ -35,6 +34,7 @@ from app.ingest.day_cursor_repo import DayCursorRepo
 from app.ingest.processed_repo import ProcessedRepo
 from app.ingest.selector import BatchSelector
 from app.ingest.upsert import upsert_game
+from app.letsplay.pipeline import LetsplayPipeline, get_letsplay_pipeline
 from app.llm.gemini_client import GeminiClient, get_llm_client
 from app.llm.review_pipeline import Outcome, summarize_game_reviews
 from app.state import WorkerState, get_state
@@ -157,6 +157,7 @@ class IngestRunner:
         *,
         concurrency: int = CONCURRENCY,
         llm: GeminiClient | None = None,
+        letsplay: LetsplayPipeline | None = None,
         bus: EventBus | None = None,
         state: WorkerState | None = None,
     ) -> None:
@@ -165,6 +166,7 @@ class IngestRunner:
         self._processed = processed_repo or ProcessedRepo()
         self._concurrency = concurrency
         self._llm = llm
+        self._letsplay = letsplay
         self._bus = bus or get_bus()
         self._state = state or get_state()
 
@@ -180,6 +182,13 @@ class IngestRunner:
         if self._llm is None:
             self._llm = get_llm_client()
         return self._llm
+
+    @property
+    def letsplay(self) -> LetsplayPipeline:
+        """Пайплайн летсплеев (доп. 1) — тоже лениво: он держит свой HTTP-клиент."""
+        if self._letsplay is None:
+            self._letsplay = get_letsplay_pipeline()
+        return self._letsplay
 
     def _emit(self, kind: EventKind, **payload: object) -> None:
         """Одно событие — один сдвиг состояния и одна строка в ленте.
@@ -318,6 +327,7 @@ class IngestRunner:
                 "llm_call", slug=item.slug, title=item.title,
                 calls=llm.calls, failures=llm.failures,
             )
+        llm += await self._letsplay_step(product, game_id, run_id)
         # В ленте игра закрывается целиком, вместе с обогащением: ответа модели
         # ждать дольше всего, и всё это время на странице статуса игра должна
         # оставаться текущей. В `processed_games` статус проставлен раньше и
@@ -330,8 +340,8 @@ class IngestRunner:
 
         Пайплайн и сам ничего не бросает, но обёртка здесь всё равно нужна:
         `process_game` не имеет права уронить заход из-за обогащения, и это
-        свойство не должно зависеть от аккуратности вызываемого кода. Сюда же
-        встанет похожий шаг — летсплей (T-45).
+        свойство не должно зависеть от аккуратности вызываемого кода. Ровно то
+        же — у летсплея, см. `_letsplay_step`.
         """
         lead = product.lead_platform
         try:
@@ -350,6 +360,41 @@ class IngestRunner:
             log.exception("резюме отзывов для %s не собрано", product.slug)
             return Outcome()
 
+    async def _letsplay_step(
+        self, product: Product, game_id: int, run_id: int
+    ) -> Outcome:
+        """Best-effort летсплей (T-44/T-45): пересказ ролика и заключение по нему.
+
+        Отдельным шагом от резюме, а не внутри `_enrich`: у него свои внешние
+        зависимости (YouTube и 300.ya.ru), свой статус в БД и своё событие в
+        ленте. Общее у шагов одно — они не решают судьбу игры в
+        `processed_games`: она уже проставлена в `ok` выше.
+
+        Обращения к модели складываются в тот же `Outcome`: заключение по
+        летсплею — третья точка вызова LLM (design §5.1), и в `runs.llm_calls`
+        она должна попасть вместе с резюме.
+        """
+        try:
+            result = await self.letsplay.enrich(game_id, product.title, run_id=run_id)
+        except Exception:  # noqa: BLE001 — игра уже `ok`, летсплей дозаполнится позже
+            log.exception("летсплей для %s не собран", product.slug)
+            return Outcome()
+
+        # Выключенная фича события не рождает: попытки не было, и строка
+        # «летсплей: disabled» на каждую игру только зашумила бы ленту. А вот
+        # `disabled` с уже найденным роликом (модель выключена) — событие.
+        if result.status != "disabled" or result.video is not None:
+            self._emit(
+                "letsplay", slug=product.slug, title=product.title,
+                status=result.status,
+                video_url=result.video.video_url if result.video else None,
+                error=result.error,
+                # счётчики модели — в том же событии: в `WorkerState` заключение
+                # по летсплею попадает вместе с резюме, а не отдельным полем
+                calls=result.llm_calls, failures=result.llm_failures,
+            )
+        return Outcome(calls=result.llm_calls, failures=result.llm_failures)
+
     async def is_locked(self) -> bool:
         """Быстрая проверка «заход уже идёт» для ответа 409 (T-23).
 
@@ -364,6 +409,11 @@ class IngestRunner:
         if self._client is not None:
             await self._client.aclose()
             self._client = None
+        if self._letsplay is not None:
+            # У пайплайна летсплеев свой `AsyncClient` к 300.ya.ru — его тоже
+            # надо закрыть, иначе на остановке процесса httpx пишет warning.
+            await self._letsplay.aclose()
+            self._letsplay = None
 
 
 _runner: IngestRunner | None = None

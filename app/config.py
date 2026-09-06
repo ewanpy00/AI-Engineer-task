@@ -62,6 +62,25 @@ class Settings(BaseSettings):
     gemini_max_concurrency: int = 2
     llm_enabled: bool = True          # рубильник для тестов и прогонов без ключа
 
+    # Летсплеи (доп. часть 1, ADR-8). Фича best-effort целиком: без
+    # YA300_SESSION_ID пайплайн не отключается молча, а пишет статус `disabled`,
+    # чтобы в базе было видно, почему пересказов нет.
+    letsplay_enabled: bool = True
+    # ytsearch отдаёт выдачу разом, из неё выбирается самый просматриваемый:
+    # десяти результатов хватает, чтобы мимо не прошёл заметный ролик.
+    letsplay_search_results: int = 10
+    # Отсекает трейлеры и шортсы: просмотров у них бывает больше, чем у любого
+    # летсплея, а рассказа блогера в них нет. Если под фильтр не попал никто,
+    # берётся самый просматриваемый из всей выдачи (см. finder).
+    letsplay_min_duration_s: int = 300
+    letsplay_search_timeout_s: float = 30.0
+    # yt-dlp синхронный и ходит в сеть из отдельного потока, 300.ya.ru держит
+    # запрос до конца генерации: обе операции идут мимо лимитера Metacritic,
+    # поэтому у них свой потолок параллелизма.
+    letsplay_max_concurrency: int = 2
+    ya300_base_url: str = "https://300.ya.ru"
+    ya300_timeout_s: float = 60.0     # T-42: одна попытка, дольше не ждём
+
     metacritic_base_url: str = "https://backend.metacritic.com"
     # research зафиксировал .../a/img/{bucketPath} — сегодня это 404: между /a/img
     # и bucketPath обязателен bucketType, у игровых обложек он всегда "catalog"

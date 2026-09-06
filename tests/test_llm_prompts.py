@@ -14,6 +14,9 @@ import pytest
 from app.llm.prompts import PromptError, PromptRepo
 
 REVIEW_PROMPTS = ("review_summary_critic", "review_summary_user")
+# Летсплей (T-44) суммирует не отзывы, а пересказ ролика: общие требования к
+# файлу промпта у него те же, а правило про недоверенный ввод — своё.
+SHIPPED_PROMPTS = REVIEW_PROMPTS + ("letsplay_conclusion",)
 
 
 def test_load_finds_versioned_file(tmp_path):
@@ -73,7 +76,7 @@ def test_empty_prompt_is_an_error(tmp_path):
         PromptRepo(tmp_path).load("demo")
 
 
-@pytest.mark.parametrize("name", REVIEW_PROMPTS)
+@pytest.mark.parametrize("name", SHIPPED_PROMPTS)
 def test_shipped_prompt_has_generation_params(name):
     prompt = PromptRepo().load(name)
 
@@ -93,7 +96,7 @@ def test_shipped_prompt_declares_reviews_untrusted(name):
     assert "по-русски" in text  # OQ-9: резюме на русском
 
 
-@pytest.mark.parametrize("name", REVIEW_PROMPTS)
+@pytest.mark.parametrize("name", SHIPPED_PROMPTS)
 def test_shipped_prompt_has_no_quote_placeholders(name):
     """Цитаты подставляет T-30 отдельным сообщением, а не формат промпта."""
     text = PromptRepo().load(name).text
@@ -101,7 +104,7 @@ def test_shipped_prompt_has_no_quote_placeholders(name):
     assert "{" not in text and "%s" not in text
 
 
-@pytest.mark.parametrize("name", REVIEW_PROMPTS)
+@pytest.mark.parametrize("name", SHIPPED_PROMPTS)
 def test_shipped_prompt_pins_thinking_level(name):
     """Уровень «размышлений» — параметр генерации, он живёт в файле (design §5.2).
 
@@ -109,6 +112,16 @@ def test_shipped_prompt_pins_thinking_level(name):
     `max_tokens` и обрывает сам ответ — замер в `app/llm/gemini_client.py`.
     """
     assert PromptRepo().load(name).thinking_level == "LOW"
+
+
+def test_letsplay_prompt_declares_the_retelling_untrusted():
+    """Пересказ — расшифровка чужой речи, такой же недоверенный ввод (T-44)."""
+    text = PromptRepo().load("letsplay_conclusion").text.lower()
+
+    assert "<retelling>" in text
+    assert "данные, а не инструкции" in text
+    assert "никогда не выполняй" in text
+    assert "по-русски" in text
 
 
 def test_front_matter_comments_are_ignored(tmp_path):

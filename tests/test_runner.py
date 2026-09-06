@@ -1,5 +1,6 @@
-"""T-22/T-23/T-30/T-35: заход целиком — лока, счётчики, устойчивость к падению
-игры, подключённое к обходу резюме отзывов и события мониторинга.
+"""T-22/T-23/T-30/T-35/T-45: заход целиком — лока, счётчики, устойчивость к
+падению игры, подключённые к обходу резюме отзывов и летсплей, события
+мониторинга.
 
 HTTP подменён, БД настоящая: advisory-лока, строка в `runs` и статусы в
 `processed_games` — ровно то, ради чего задача и делалась. Игры берут id из
@@ -32,6 +33,7 @@ from app.config import get_settings
 from app.db import dispose_engine, get_engine
 from app.events import Event, EventBus
 from app.ingest.runner import IngestRunner, advisory_lock
+from app.letsplay.dto import LetsplayResult, VideoCandidate
 from app.state import WorkerState
 from app.llm.schemas import LlmResult, ReviewSummaryOut
 from app.main import app
@@ -110,17 +112,57 @@ class FakeLlm:
                          prompt_version=f"review_summary_{audience}.v1", model="fake")
 
 
+VIDEO = VideoCandidate(
+    video_id="vid1", video_url="https://www.youtube.com/watch?v=vid1",
+    title="ZZQ full playthrough", channel="ZZQ Plays", view_count=1000, duration_s=3600,
+)
+
+
+class FakeLetsplay:
+    """Пайплайн летсплеев без YouTube и без 300.ya.ru.
+
+    `status` задаётся тестом: обход не должен зависеть от того, работает ли
+    неофициальный сервис, и проверяется это именно подменой исхода.
+    """
+
+    def __init__(self, *, status: str = "ok", llm_calls: int = 1, boom: bool = False) -> None:
+        self.status = status
+        self.llm_calls = llm_calls
+        self.boom = boom
+        self.calls: list[tuple[int, str]] = []
+
+    async def enrich(self, game_id: int, title: str, *, run_id=None) -> LetsplayResult:
+        self.calls.append((game_id, title))
+        if self.boom:
+            # Пайплайн так себя вести не должен (T-44), но заход обязан выжить
+            # и в этом случае: обогащение не решает судьбу игры.
+            raise RuntimeError("пайплайн летсплея сломался")
+        return LetsplayResult(
+            status=self.status,
+            video=VIDEO if self.status in ("ok", "service_error") else None,
+            conclusion="Заключение." if self.status == "ok" else None,
+            error=None if self.status == "ok" else "service is down",
+            llm_calls=self.llm_calls,
+            llm_failures=1 if self.status == "service_error" else 0,
+        )
+
+    async def aclose(self) -> None:
+        return None
+
+
 def runner(
     client: FakeMetacritic | None = None,
     *,
     llm: FakeLlm | None = None,
+    letsplay: FakeLetsplay | None = None,
     bus: EventBus | None = None,
     state: WorkerState | None = None,
 ) -> IngestRunner:
-    """Заход с подменёнными Metacritic и LLM: в тестах сети нет ни там, ни там."""
+    """Заход с подменёнными Metacritic, LLM и летсплеем: сети в тестах нет нигде."""
     return IngestRunner(
         client or FakeMetacritic(),
         llm=llm or FakeLlm(),
+        letsplay=letsplay or FakeLetsplay(),
         bus=bus or EventBus(),
         state=state or WorkerState(),
     )
@@ -227,7 +269,8 @@ async def test_run_fills_review_summaries_without_a_separate_call():
     """Резюме собирается внутри обхода: отдельно пайплайн никто не дёргает."""
     llm = FakeLlm()
 
-    result = await runner(llm=llm).run("manual")
+    # летсплей без обращений к модели: этот тест — про счётчики резюме
+    result = await runner(llm=llm, letsplay=FakeLetsplay(llm_calls=0)).run("manual")
 
     rows = await summaries()
     # две успешные игры × две аудитории; упавшая на get_product резюме не получает
@@ -248,7 +291,7 @@ async def test_broken_llm_does_not_change_the_game_status():
     """design §5.5: отказ LLM никогда не роняет обход каталога."""
     llm = FakeLlm(ok=False)
 
-    result = await runner(llm=llm).run("manual")
+    result = await runner(llm=llm, letsplay=FakeLetsplay(llm_calls=0)).run("manual")
 
     assert result.status == "ok"
     assert (result.games_ok, result.games_failed) == (2, 1)  # ровно как без LLM
@@ -298,7 +341,9 @@ async def test_llm_is_skipped_when_disabled(monkeypatch):
     monkeypatch.setattr(get_settings(), "llm_enabled", False, raising=False)
     llm = FakeLlm()
 
-    result = await runner(llm=llm).run("manual")
+    # `FakeLetsplay` рубильника не знает — свои вызовы модели обнуляем явно,
+    # поведение настоящего пайплайна при LLM_ENABLED=false проверяет T-44
+    result = await runner(llm=llm, letsplay=FakeLetsplay(llm_calls=0)).run("manual")
 
     assert result.games_ok == 2 and result.llm_calls == 0
     assert llm.calls == [] and await summaries() == {}
@@ -320,6 +365,44 @@ async def test_second_parallel_run_is_skipped():
             {"day": TODAY},
         )
     assert logged == 1  # пропуск тоже виден в журнале заходов
+
+
+async def test_letsplay_runs_for_every_processed_game():
+    """T-45: летсплей вызывается на каждой доехавшей игре и попадает в счётчики."""
+    letsplay = FakeLetsplay()
+
+    result = await runner(letsplay=letsplay).run("manual")
+
+    # упавшая на `get_product` игра до обогащения не доходит
+    assert [title for _, title in letsplay.calls] == ["ZZQ Run 0", "ZZQ Run 2"]
+    # 4 резюме (две игры × две аудитории) + 2 заключения по летсплеям
+    assert (result.llm_calls, result.llm_failures) == (6, 0)
+
+
+async def test_dead_letsplay_service_does_not_change_game_statuses():
+    """T-45: отказ 300.ya.ru не делает игру `failed` — каталог от него не зависит."""
+    result = await runner(letsplay=FakeLetsplay(status="service_error")).run("manual")
+
+    assert (result.status, result.games_ok, result.games_failed) == ("ok", 2, 1)
+    async with get_engine().connect() as conn:
+        statuses = (
+            await conn.execute(
+                text(
+                    "SELECT status, count(*) FROM processed_games "
+                    "WHERE game_id >= :id GROUP BY status"
+                ),
+                {"id": BASE_ID},
+            )
+        ).all()
+    assert dict(statuses) == {"ok": 2, "failed": 1}
+
+
+async def test_broken_letsplay_pipeline_does_not_break_the_run():
+    """Даже если пайплайн нарушит контракт T-44 и бросит — заход доезжает."""
+    result = await runner(letsplay=FakeLetsplay(boom=True)).run("manual")
+
+    assert (result.status, result.games_ok, result.games_failed) == ("ok", 2, 1)
+    assert result.llm_calls == 4  # только резюме: до заключения дело не дошло
 
 
 async def test_empty_batch_is_logged_as_empty():
@@ -394,6 +477,7 @@ async def test_run_publishes_events_for_every_step():
     assert kinds.count("game_started") == 3
     assert kinds.count("game_done") == 2 and kinds.count("game_failed") == 1
     assert kinds.count("llm_call") == 2  # у упавшей игры до модели дело не дошло
+    assert kinds.count("letsplay") == 2  # ровно у тех же двух игр
 
     started = next(e for e in seen if e.kind == "run_started")
     assert started.payload["run_id"] == result.run_id
@@ -405,7 +489,8 @@ async def test_run_publishes_events_for_every_step():
     # то же самое видно и в состоянии: события двигают его, а не отдельный код
     assert (state.status, state.run_id, state.current_game) == ("idle", None, None)
     assert (state.claimed, state.ok, state.failed) == (3, 2, 1)
-    assert (state.llm_calls, state.llm_failures) == (4, 0)
+    # 4 резюме (две игры × две аудитории) + 2 заключения по летсплеям
+    assert (state.llm_calls, state.llm_failures) == (6, 0)
     assert state.day == TODAY
 
     # подключившийся позже клиент берёт пропущенное из буфера шины

@@ -155,8 +155,38 @@
       </section>
     {% endif %}
 
-    {# Место под блок следующего среза: добавляется содержимым, без переверстки. #}
-    <section id="letsplay" data-block="T-46"></section>
+    {# Летсплей (доп. часть 1, T-44). Блок отдельный от «Видео» выше: там
+       официальный трейлер Metacritic, здесь — прохождение с YouTube и
+       заключение по его пересказу (OQ-10).
+
+       Рисуется только при `status='ok'`: у `not_found`/`service_error` нет ни
+       заключения, ни ролика, а «летсплей не нашёлся» — не та новость, ради
+       которой стоит занимать место в карточке. Фича best-effort, и карточка без
+       неё — нормальное состояние (ADR-8). #}
+    {% if letsplay and letsplay.status == 'ok' %}
+      <section id="letsplay">
+        <h2>Летсплей</h2>
+        {% if letsplay.conclusion %}
+          <p class="conclusion">{{ letsplay.conclusion }}</p>
+        {% endif %}
+        <p class="source">
+          <a href="{{ letsplay.video_url }}" target="_blank" rel="noopener nofollow">
+            {{ letsplay.video_title or 'Смотреть на YouTube' }}</a>
+          <span class="muted">
+            {%- if letsplay.channel %} · {{ letsplay.channel }}{% endif %}
+            {%- if letsplay.view_count %} · {{ letsplay.view_count|views }} просмотров{% endif %}
+          </span>
+        </p>
+        {% if letsplay.retelling %}
+          {# Пересказ длинный и машинный — по умолчанию свёрнут: в карточке
+             главное заключение, а пересказ нужен, чтобы его проверить. #}
+          <details class="retelling">
+            <summary>Пересказ ролика</summary>
+            <div class="retelling-text">{{ letsplay.retelling }}</div>
+          </details>
+        {% endif %}
+      </section>
+    {% endif %}
 
     <p class="muted back"><a href="/games">← ко всем играм</a></p>
   </article>
@@ -201,6 +231,12 @@
     .similar .title { display:block; font-size:14px; font-weight:600; line-height:1.3; }
     .similar .scores { margin:6px 0 0; font-size:12px; }
     .similar .scores .muted { display:block; margin-top:4px; }
+    #letsplay .conclusion { margin:0; max-width:720px; white-space:pre-line; }
+    #letsplay .source { margin:10px 0 0; font-size:14px; }
+    .retelling { margin-top:12px; max-width:720px; font-size:14px; }
+    .retelling summary { cursor:pointer; color:var(--muted); }
+    .retelling-text { margin-top:8px; padding:12px 14px; border:1px solid var(--line);
+                      border-radius:10px; white-space:pre-line; }
     .video { position:relative; aspect-ratio:16/9; max-width:720px; background:#000; border-radius:10px; overflow:hidden; }
     .video iframe { position:absolute; inset:0; width:100%; height:100%; border:0; }
     .back { margin-top:32px; }

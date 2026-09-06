@@ -115,7 +115,11 @@ class WorkerState:
             case "game_failed":
                 self.in_flight.pop(payload["slug"], None)
                 self.failed += 1
-            case "llm_call":
+            case "llm_call" | "letsplay":
+                # Заключение по летсплею — та же третья точка вызова модели
+                # (design §5.1), и в дневной счётчик она входит вместе с
+                # резюме: иначе после рестарта `restore` (он читает `runs`)
+                # показал бы больше вызовов, чем накопила лента.
                 self.llm_calls += payload.get("calls", 0)
                 self.llm_failures += payload.get("failures", 0)
             case "run_finished":
