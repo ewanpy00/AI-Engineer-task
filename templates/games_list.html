@@ -1,0 +1,7 @@
+{% extends "base.html" %}
+{% block content %}
+  <h1>Игры</h1>
+  {% if not games %}
+    <p class="muted">Игр пока нет — запустите обработку через <code>POST /admin/run</code>.</p>
+  {% endif %}
+{% endblock %}

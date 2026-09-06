@@ -6,3 +6,6 @@ __pycache__/
 venv/
 .DS_Store
 .claude/settings.local.json
+*.egg-info/
+.python-version
+*.egg-info/

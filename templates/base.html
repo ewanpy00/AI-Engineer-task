@@ -1,0 +1,27 @@
+<!doctype html>
+<html lang="ru">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>{% block title %}Metacritic digest{% endblock %}</title>
+  <script src="https://unpkg.com/htmx.org@2.0.4"></script>
+  <style>
+    :root { color-scheme: light dark; --bg:#fff; --fg:#111; --muted:#666; --line:#e2e2e2; --card:#fafafa; }
+    @media (prefers-color-scheme: dark) {
+      :root { --bg:#151517; --fg:#eee; --muted:#9a9a9a; --line:#2c2c30; --card:#1c1c1f; }
+    }
+    * { box-sizing: border-box; }
+    body { margin:0; background:var(--bg); color:var(--fg);
+           font:15px/1.5 -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; }
+    a { color: inherit; }
+    header { border-bottom:1px solid var(--line); padding:14px 20px; }
+    header a { text-decoration:none; font-weight:600; }
+    main { max-width:1100px; margin:0 auto; padding:20px; }
+    .muted { color: var(--muted); }
+  </style>
+</head>
+<body>
+  <header><a href="/games">Metacritic digest</a></header>
+  <main>{% block content %}{% endblock %}</main>
+</body>
+</html>
