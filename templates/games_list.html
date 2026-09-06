@@ -1,44 +1,40 @@
 {% extends "base.html" %}
 {% block content %}
   <h1>Игры</h1>
-  {% if not games %}
-    <p class="muted">Игр пока нет — запустите обработку через <code>POST /admin/run</code>.</p>
-  {% else %}
-    <p class="muted">Всего: {{ games|length }}</p>
-    <ul class="cards">
-      {% for game in games %}
-        <li class="card">
-          {# TODO T-14: обложка и название ведут на /game/{{ '{slug}' }} #}
-          <div class="cover">
-            {% if game.cover_path %}
-              <img src="{{ cover_url(game.cover_path) }}" alt="{{ game.title }}" loading="lazy">
-            {% else %}
-              <span class="cover-empty muted">без обложки</span>
-            {% endif %}
-          </div>
-          <div class="body">
-            <span class="title">{{ game.title }}</span>
-            {% if game.platforms %}
-              <p class="muted platforms">{{ game.platforms|join(', ') }}</p>
-            {% endif %}
-            <p class="scores">
-              {% if game.best_metascore is not none %}
-                <span class="score metascore" title="Metascore">{{ game.best_metascore }}</span>
-              {% endif %}
-              {% if game.best_userscore is not none %}
-                <span class="score userscore" title="Userscore">{{ '%.1f'|format(game.best_userscore) }}</span>
-              {% endif %}
-              {% if game.best_metascore is none and game.best_userscore is none %}
-                <span class="muted">без оценок</span>
-              {% endif %}
-            </p>
-          </div>
-        </li>
+
+  {# action/method оставлены рабочими: без JS форма просто перезагружает /games.
+     С htmx тот же набор полей уходит на /games/fragment и подменяет только список,
+     а адресную строку правит заголовок HX-Push-Url из ответа. #}
+  <form class="filters" action="/games" method="get"
+        hx-get="/games/fragment" hx-target="#games-results" hx-swap="innerHTML"
+        hx-trigger="submit, keyup changed delay:300ms from:#q, change from:#platform, change from:#sort">
+    <input type="search" id="q" name="q" value="{{ q }}" placeholder="Поиск по названию"
+           autocomplete="off">
+    <select id="platform" name="platform">
+      <option value="">Все платформы</option>
+      {% for p in all_platforms %}
+        <option value="{{ p.platform_slug }}" {{ 'selected' if p.platform_slug == platform }}>
+          {{ p.platform_name }} ({{ p.games_count }})
+        </option>
       {% endfor %}
-    </ul>
-  {% endif %}
+    </select>
+    <select id="sort" name="sort">
+      <option value="new" {{ 'selected' if sort == 'new' }}>Сначала новые</option>
+      <option value="metascore" {{ 'selected' if sort == 'metascore' }}>По Metascore</option>
+      <option value="userscore" {{ 'selected' if sort == 'userscore' }}>По Userscore</option>
+    </select>
+    {# Пагинация всегда начинается заново, когда меняются поиск, фильтр или порядок. #}
+    <noscript><button type="submit">Показать</button></noscript>
+  </form>
+
+  <div id="games-results">{% include "_games_fragment.html" %}</div>
 
   <style>
+    .filters { display:flex; gap:10px; flex-wrap:wrap; margin:0 0 18px; }
+    .filters input, .filters select { font:inherit; padding:7px 10px; border-radius:8px;
+                                      border:1px solid var(--line); background:var(--card); color:var(--fg); }
+    .filters input { flex:1 1 260px; min-width:180px; }
+    .total, .empty { margin:0 0 14px; }
     .cards { list-style:none; margin:0; padding:0;
              display:grid; gap:16px; grid-template-columns:repeat(auto-fill, minmax(180px, 1fr)); }
     .card { background:var(--card); border:1px solid var(--line); border-radius:10px; overflow:hidden;
@@ -53,5 +49,6 @@
              font-weight:600; text-align:center; color:#111; }
     .metascore { background:#ffcc33; }
     .userscore { background:#7ec8a0; }
+    .pager { display:flex; gap:16px; margin:22px 0 0; font-size:14px; }
   </style>
 {% endblock %}
