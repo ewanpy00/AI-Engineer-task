@@ -13,7 +13,7 @@ import random
 import time
 from datetime import date
 from typing import Any
-from urllib.parse import quote
+from urllib.parse import quote, urlsplit
 
 import httpx
 
@@ -220,6 +220,28 @@ def _as_str(value: Any) -> str | None:
     return text or None
 
 
+# Схемы, которые не станут скриптом, попав в `src`/`href` карточки.
+_WEB_SCHEMES = frozenset({"http", "https"})
+
+
+def _as_web_url(value: Any) -> str | None:
+    """URL из ответа API или `None`, если схеме нельзя доверять.
+
+    `video_url` уходит в `<iframe src>` и в `<a href>` карточки, а `javascript:`
+    там исполнился бы в origin нашей страницы. Проверка стоит на границе, чтобы
+    такое значение не попало в БД вовсе; шаблон повторяет её вторым слоем для
+    строк, записанных до этой правки.
+    """
+    text = _as_str(value)
+    if text is None:
+        return None
+    try:
+        scheme = urlsplit(text).scheme.lower()
+    except ValueError:
+        return None
+    return text if scheme in _WEB_SCHEMES else None
+
+
 def _item(payload: dict) -> dict:
     data = payload.get("data")
     item = data.get("item") if isinstance(data, dict) else None
@@ -396,7 +418,7 @@ class MetacriticClient:
             release_date=_as_date(item.get("releaseDate")),
             cover_path=_cover_path(item),
             # официальный трейлер Metacritic (JW Player), не летсплей с YouTube
-            video_url=_as_str(video.get("embedUrl")) or _as_str(video.get("manifestUrl")),
+            video_url=_as_web_url(video.get("embedUrl")) or _as_web_url(video.get("manifestUrl")),
             genres=[g for g in (_as_str(x.get("name")) for x in genres if isinstance(x, dict)) if g],
             platforms=_platforms(item),
             raw=payload,

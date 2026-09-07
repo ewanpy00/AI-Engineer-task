@@ -82,7 +82,7 @@ def test_shipped_prompt_has_generation_params(name):
 
     assert prompt.version == "v1"
     assert prompt.max_tokens and prompt.temperature is not None
-    assert prompt.model  # промпт помечен моделью, под которую написан
+    # модель здесь не проверяется: её задаёт конфиг, в шапке промпта её нет
 
 
 @pytest.mark.parametrize("name", REVIEW_PROMPTS)

@@ -85,13 +85,21 @@ async def test_status_page_shows_events_from_the_buffer():
     assert TITLE in (await get_status()).text
 
 
-async def test_status_page_carries_the_admin_token_for_the_button():
-    """Без токена кнопка была бы неработающей декорацией (OQ-8)."""
+async def test_status_page_never_renders_the_admin_token():
+    """Страница открыта всем: секрет в HTML сделал бы `/admin/run` анонимным.
+
+    Кнопка остаётся на месте (её требует ТЗ), но токен подставляет тот, кто его
+    знает, — заголовок собирается из поля ввода в момент запроса.
+    """
     from app.config import get_settings
 
     text = (await get_status()).text
-    assert 'hx-post="/admin/run"' in text
-    assert get_settings().admin_token in text
+    token = get_settings().admin_token
+
+    assert 'hx-post="/admin/run"' in text          # кнопка на месте
+    assert 'id="admin-token"' in text              # токен вводится, а не рендерится
+    assert "js:{" in text                          # заголовок вычисляется на клиенте
+    assert token and token not in text
 
 
 async def frames(stream, n: int) -> list[str]:
@@ -134,13 +142,16 @@ async def test_stream_pushes_every_new_event():
     try:
         await frames(stream, 1)  # первичная панель
 
-        emit("game_failed", slug="zzq", title=TITLE, error="boom")
+        emit("game_failed", slug="zzq", title=TITLE, error="MetacriticError: 500 http://db:5432")
         feed, panel = await frames(stream, 2)
     finally:
         await stream.aclose()
 
     assert feed.startswith("event: feed")
-    assert TITLE in feed and "boom" in feed
+    # видно, что и на чём сломалось, но без текста исключения: страница открыта
+    # всем, а в тексте — хосты, пути и параметры запросов
+    assert TITLE in feed and "MetacriticError" in feed
+    assert "db:5432" not in feed
     # панель приходит следом уже с новым счётчиком ошибок
     assert panel.startswith("event: panel") and "ошибок 1" in panel
 
@@ -186,3 +197,18 @@ def test_event_frame_escapes_untrusted_text():
 
     assert "<script>" not in frame and "&lt;script&gt;" in frame
     assert "<b>boom</b>" not in frame
+
+
+def test_event_frame_hides_the_exception_text():
+    """В ленту уходит машинная причина, а не текст исключения."""
+    event = Event(
+        kind="game_failed",
+        payload={"slug": "zzq", "title": TITLE,
+                 "error": "OperationalError: connect to user@10.0.0.5:5432 failed"},
+        ts=datetime.now(UTC),
+    )
+
+    frame = routes_status.event_frame(event)
+
+    assert "OperationalError" in frame
+    assert "10.0.0.5" not in frame and "user@" not in frame

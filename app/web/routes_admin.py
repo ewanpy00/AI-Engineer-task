@@ -27,9 +27,20 @@ _background: set[asyncio.Task] = set()
 
 
 def require_admin(token: str | None) -> None:
-    """Один общий секрет на всю админку (design §8, OQ-8)."""
+    """Один общий секрет на всю админку (design §8, OQ-8).
+
+    Сравнение идёт по байтам, а не по строкам: заголовки Starlette декодирует
+    как latin-1, и `compare_digest` на строке с символом за пределами ASCII
+    бросает `TypeError` — ручка отвечала бы 500 вместо 401 и отличалась бы по
+    коду ответа от обычного промаха.
+
+    Пустой `expected` (ADMIN_TOKEN не задан) закрывает ручку целиком: это
+    незаполненная конфигурация, а не разрешение всем.
+    """
     expected = get_settings().admin_token
-    if not expected or not token or not secrets.compare_digest(token, expected):
+    if not expected or not token:
+        raise HTTPException(status_code=401, detail="invalid admin token")
+    if not secrets.compare_digest(token.encode("utf-8"), expected.encode("utf-8")):
         raise HTTPException(status_code=401, detail="invalid admin token")
 
 

@@ -2,7 +2,8 @@
 
 from __future__ import annotations
 
-from urllib.parse import urlencode
+import re
+from urllib.parse import urlencode, urlsplit
 
 from fastapi.templating import Jinja2Templates
 
@@ -39,6 +40,52 @@ def views(count: int | None) -> str:
     return f"{count:,}".replace(",", "\u2009") if isinstance(count, int) else ""
 
 
+# Схемы, которые можно подставить в `src`/`href` чужой ссылки. `javascript:`
+# в `<iframe src>` и в `<a href>` исполняется в origin нашей страницы, поэтому
+# белый список, а не чёрный.
+_WEB_SCHEMES = frozenset({"http", "https"})
+
+# Ошибки собираются как `f"{type(exc).__name__}: {exc}"` — до двоеточия стоит
+# машинная причина, после неё произвольный текст исключения.
+_REASON_RE = re.compile(r"^[A-Za-z_][A-Za-z0-9_.]{0,63}$")
+UNKNOWN_REASON = "ошибка"
+
+
+def external_url(url: str | None) -> str | None:
+    """Ссылка из внешнего API — или `None`, если её схеме нельзя доверять.
+
+    `video_url` приходит из ответа Metacritic и попадает в `<iframe src>` и в
+    `<a href>`. Автоэкранирование Jinja не выпускает значение за пределы
+    атрибута, но схему не проверяет: `javascript:…` в обоих случаях исполнится
+    как скрипт нашей страницы. Всё, кроме http(s), шаблон должен считать
+    отсутствующей ссылкой.
+    """
+    if not url:
+        return None
+    try:
+        scheme = urlsplit(url.strip()).scheme.lower()
+    except ValueError:  # невалидный URL — та же отсутствующая ссылка
+        return None
+    return url.strip() if scheme in _WEB_SCHEMES else None
+
+
+def error_kind(error: str | None) -> str:
+    """Причина отказа без текста исключения — для публичных страниц.
+
+    `/status` открыт всем (ТЗ требует мониторинг в вебе), а в тексте
+    исключения лежат хосты, пути эндпоинтов и параметры запросов — иногда и
+    строка подключения к БД. Наружу отдаём только машинную причину
+    (`MetacriticError`, `no_session`), полный текст остаётся в `runs.error`,
+    `processed_games.error` и в логе процесса.
+    """
+    if not error:
+        return ""
+    reason = error.split(":", 1)[0].strip()
+    return reason if _REASON_RE.match(reason) else UNKNOWN_REASON
+
+
 templates.env.globals["cover_url"] = cover_url
 templates.env.globals["query_string"] = query_string
+templates.env.globals["external_url"] = external_url
 templates.env.filters["views"] = views
+templates.env.filters["error_kind"] = error_kind

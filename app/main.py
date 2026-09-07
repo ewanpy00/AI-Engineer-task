@@ -48,8 +48,13 @@ app.include_router(routes_status.router)
 
 @app.get("/healthz")
 async def healthz() -> JSONResponse:
+    """Проба для healthcheck'а Railway. Ручка открыта всем, поэтому в теле —
+    только факт отказа: текст исключения asyncpg/SQLAlchemy содержит хост, порт
+    и пользователя БД, а иногда и строку подключения целиком. Подробности
+    уходят в лог процесса."""
     try:
         ok = await db.ping()
-    except Exception as exc:  # noqa: BLE001 — healthz не должен падать 500 без тела
-        return JSONResponse({"status": "error", "db": False, "error": str(exc)}, 503)
+    except Exception:  # noqa: BLE001 — healthz не должен падать 500 без тела
+        log.exception("healthz: база недоступна")
+        return JSONResponse({"status": "error", "db": False}, 503)
     return JSONResponse({"status": "ok", "db": ok})

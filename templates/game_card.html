@@ -72,14 +72,19 @@
       {% endif %}
     </section>
 
-    {% if game.video_url %}
+    {# `video_url` приходит из ответа Metacritic. `external_url` пропускает
+       только http(s): всё остальное (в первую очередь `javascript:`) в
+       `<iframe src>` и в `<a href>` исполнилось бы как скрипт нашей страницы.
+       Отвергнутая ссылка — то же самое, что её отсутствие: блока нет. #}
+    {% set video_src = external_url(game.video_url) %}
+    {% if video_src %}
       <section id="video">
         <h2>Видео</h2>
         {# Плеер Metacritic (jwplayer) отдаётся без X-Frame-Options, встраивается
            напрямую. Ссылка рядом — на случай, если у зрителя блокируются iframe. #}
-        <div class="video"><iframe src="{{ game.video_url }}" allowfullscreen
+        <div class="video"><iframe src="{{ video_src }}" allowfullscreen
                                    referrerpolicy="no-referrer" title="Трейлер {{ game.title }}"></iframe></div>
-        <p class="muted"><a href="{{ game.video_url }}" target="_blank" rel="noopener">Открыть видео отдельно</a></p>
+        <p class="muted"><a href="{{ video_src }}" target="_blank" rel="noopener">Открыть видео отдельно</a></p>
       </section>
     {% endif %}
 
@@ -170,7 +175,9 @@
           <p class="conclusion">{{ letsplay.conclusion }}</p>
         {% endif %}
         <p class="source">
-          <a href="{{ letsplay.video_url }}" target="_blank" rel="noopener nofollow">
+          {# Ссылку на ролик собирает finder по шаблону watch?v=…, но через ту же
+             проверку схемы: в карточку не должно попасть ничего, кроме http(s). #}
+          <a href="{{ external_url(letsplay.video_url) or '#' }}" target="_blank" rel="noopener nofollow">
             {{ letsplay.video_title or 'Смотреть на YouTube' }}</a>
           <span class="muted">
             {%- if letsplay.channel %} · {{ letsplay.channel }}{% endif %}

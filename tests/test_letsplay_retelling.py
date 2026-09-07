@@ -1,13 +1,15 @@
 """T-42: адаптер 300.ya.ru — ожидание генерации, отказы, протухшая кука.
 
 Транспорт подменён `httpx.MockTransport`: проверяется поведение адаптера, а не
-живой сервис. Формат запросов и ответов здесь — тот же ASSUMPTION, что и в
-модуле (research 300.ya.ru не покрывал): тесты фиксируют, что при таком ответе
-адаптер ведёт себя как обещано контракту `RetellingService`, и ломаются ровно
-там, где формат придётся править по факту.
+живой сервис. Форма запросов и ответов здесь — не догадка: она снята с живого
+API 07.09.2026 (см. docstring модуля). Первая версия адаптера получала 404 на
+каждой игре ровно потому, что не отправляла обязательное поле `type`, поэтому
+состав тела запроса тесты проверяют так же строго, как разбор ответа.
 """
 
 from __future__ import annotations
+
+import json
 
 import httpx
 import pytest
@@ -21,9 +23,15 @@ from app.letsplay.retelling import (
 
 VIDEO = "https://www.youtube.com/watch?v=abc123"
 
+# Форма живого ответа: у видео заполнены keypoints с theses, а `title` и
+# `sharing_url` остаются пустыми даже после завершения — признак готовности
+# только `status_code == 0`.
 DONE = {
     "status_code": 0,
-    "title": "Прохождение",
+    "session_id": "sess-1",
+    "title": "",
+    "sharing_url": "",
+    "type": "video",
     "keypoints": [
         {"content": "Начало", "theses": [{"content": "Герой попадает в город"}]},
         {"content": "Бой", "theses": [{"content": "Драки быстрые"}, {"content": "Боссы жёсткие"}]},
@@ -71,24 +79,59 @@ async def test_successful_call_returns_joined_retelling():
     ]
     assert len(seen) == 1
     assert seen[0].url.path == "/api/generation"
-    assert b'"video_url"' in seen[0].content
     assert "Session_id=cookie-value" in seen[0].headers.get("cookie", "")
 
 
+async def test_start_request_carries_the_url_and_the_mandatory_type():
+    """Без `type` сервис отвечает 404 — на этом не работала первая версия."""
+    service, seen = service_over(DONE)
+
+    await service.retell(VIDEO)
+
+    assert json.loads(seen[0].content) == {"video_url": VIDEO, "type": "video"}
+
+
 async def test_waits_until_generation_is_done():
-    """`status_code=1` — «ещё генерируется»: продолжаем тем же `session_id`."""
+    """`status_code=1` — «ещё генерируется»: продолжаем по `session_id`."""
     service, seen = service_over(
         {"status_code": 1, "session_id": "sess-1", "poll_interval_ms": 1},
+        # промежуточный ответ: keypoints уже приходят, но частично — брать рано
+        {"status_code": 1, "session_id": "sess-1", "poll_interval_ms": 1,
+         "keypoints": [{"content": "Начало", "theses": []}]},
         DONE,
     )
 
-    assert await service.retell(VIDEO)
-    assert len(seen) == 2
-    assert b"sess-1" in seen[1].content
+    retelling = await service.retell(VIDEO)
+
+    assert len(seen) == 3
+    # в продолжении — session_id и type, ссылки на ролик там нет
+    assert json.loads(seen[1].content) == {"session_id": "sess-1", "type": "video"}
+    assert json.loads(seen[2].content) == {"session_id": "sess-1", "type": "video"}
+    # текст взят из последнего ответа, а не из недособранного промежуточного
+    assert "Боссы жёсткие" in retelling
+
+
+async def test_generation_without_session_id_is_not_polled_forever():
+    """Продолжать нечем: повтор по ссылке начал бы генерацию заново."""
+    service, seen = service_over({"status_code": 1, "poll_interval_ms": 1})
+
+    with pytest.raises(RetellingUnavailable) as exc:
+        await service.retell(VIDEO)
+    assert exc.value.reason == "rejected"
+    assert len(seen) == 1
+
+
+async def test_error_code_in_a_finished_answer_is_a_failure():
+    service, _ = service_over(DONE | {"error_code": 3})
+
+    with pytest.raises(RetellingUnavailable) as exc:
+        await service.retell(VIDEO)
+    assert exc.value.reason == "rejected"
 
 
 async def test_expired_cookie_is_reported_as_auth_failure():
-    service, _ = service_over(httpx.Response(403, text="forbidden"))
+    """Живой сервис отвечает на протухшую куку `403 {"message":"Not Authorized"}`."""
+    service, _ = service_over(httpx.Response(403, json={"message": "Not Authorized"}))
 
     with pytest.raises(RetellingUnavailable) as exc:
         await service.retell(VIDEO)
@@ -143,6 +186,22 @@ async def test_non_json_answer_is_reported_as_unavailable():
     with pytest.raises(RetellingUnavailable) as exc:
         await service.retell(VIDEO)
     assert exc.value.reason == "bad_json"
+
+
+async def test_own_client_does_not_follow_redirects():
+    """Кука `Session_id` не имеет права уехать на чужой хост.
+
+    httpx создаёт куку из словаря с пустым доменом, а он матчится на любой
+    хост: редирект с 300.ya.ru на сторонний домен унёс бы туда доступ к
+    аккаунту Яндекса целиком.
+    """
+    service = Ya300RetellingService(make_settings())
+
+    client = service._http()
+    try:
+        assert client.follow_redirects is False
+    finally:
+        await service.aclose()
 
 
 def test_extract_reads_flat_thesis_list_too():

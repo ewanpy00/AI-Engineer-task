@@ -431,7 +431,23 @@ class StubRunner:
         self.started.set()
 
 
-async def admin_post(token: str | None) -> httpx.Response:
+ADMIN_TOKEN = "test-admin-token"
+
+
+@pytest.fixture
+def admin_token(monkeypatch):
+    """Свой токен на время теста: результат не должен зависеть от `.env` машины.
+
+    Дефолта у `ADMIN_TOKEN` больше нет (пустая строка закрывает админку целиком),
+    поэтому токен для теста задаётся явно.
+    """
+    monkeypatch.setattr(get_settings(), "admin_token", ADMIN_TOKEN)
+    return ADMIN_TOKEN
+
+
+async def admin_post(token: str | bytes | None) -> httpx.Response:
+    # bytes — чтобы можно было послать заголовок вне ASCII: httpx кодирует
+    # str-значения строго в ascii, а живой клиент такой байт отправить может
     headers = {"X-Admin-Token": token} if token else {}
     transport = httpx.ASGITransport(app=app)
     async with httpx.AsyncClient(transport=transport, base_url="http://test") as client:
@@ -442,21 +458,38 @@ async def test_admin_run_requires_token():
     assert (await admin_post(None)).status_code == 401
 
 
-async def test_admin_run_starts_background_ingest(monkeypatch):
+async def test_admin_run_rejects_a_wrong_token(admin_token):
+    assert (await admin_post("not-the-token")).status_code == 401
+
+
+async def test_admin_run_answers_401_on_a_non_ascii_token(admin_token):
+    """Заголовки Starlette декодирует как latin-1, а `compare_digest` на строке
+    с не-ASCII бросает `TypeError`: промах должен оставаться промахом, а не 500."""
+    assert (await admin_post("токен".encode("utf-8"))).status_code == 401
+
+
+async def test_admin_run_is_closed_when_the_token_is_not_configured(monkeypatch):
+    """Незаданный ADMIN_TOKEN закрывает ручку, а не открывает её всем."""
+    monkeypatch.setattr(get_settings(), "admin_token", "")
+
+    assert (await admin_post("anything")).status_code == 401
+
+
+async def test_admin_run_starts_background_ingest(monkeypatch, admin_token):
     stub = StubRunner(locked=False)
     monkeypatch.setattr(routes_admin, "get_runner", lambda: stub)
 
-    response = await admin_post(get_settings().admin_token)
+    response = await admin_post(admin_token)
 
     assert response.status_code == 202
     await asyncio.wait_for(stub.started.wait(), timeout=1)
 
 
-async def test_admin_run_conflicts_with_running_ingest(monkeypatch):
+async def test_admin_run_conflicts_with_running_ingest(monkeypatch, admin_token):
     stub = StubRunner(locked=True)
     monkeypatch.setattr(routes_admin, "get_runner", lambda: stub)
 
-    response = await admin_post(get_settings().admin_token)
+    response = await admin_post(admin_token)
 
     assert response.status_code == 409
     assert not stub.started.is_set()

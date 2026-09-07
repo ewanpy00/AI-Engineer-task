@@ -20,7 +20,6 @@ from collections.abc import AsyncIterator
 from fastapi import APIRouter, Request
 from fastapi.responses import StreamingResponse
 
-from app.config import get_settings
 from app.events import RECENT_DEFAULT, Event, get_bus
 from app.state import WorkerState, get_state
 from app.web.repo_status import recent_runs
@@ -68,9 +67,11 @@ def event_frame(event: Event) -> str:
 async def status_page(request: Request):
     """Первичный рендер: состояние воркера, лента из буфера шины, журнал заходов.
 
-    Токен админки подставляется сервером прямо в разметку кнопки (OQ-8,
-    «дефолт принят»): отдельного хранилища и отдельного логина у страницы нет,
-    а без токена кнопка была бы неработающей декорацией.
+    Токен админки в разметку не попадает. Страница открыта всем — ТЗ требует
+    мониторинг в веб-интерфейсе, — а подставленный сервером секрет читался бы
+    прямо из HTML любым анонимом, и `POST /admin/run` был бы защищён только на
+    бумаге. Кнопка берёт токен из поля на странице: он остаётся у того, кто его
+    знает, и уходит только в заголовке запроса (см. `status.html`).
     """
     return templates.TemplateResponse(
         request,
@@ -79,7 +80,6 @@ async def status_page(request: Request):
             "state": get_state(),
             "events": list(reversed(get_bus().recent(RECENT_DEFAULT))),  # свежие сверху
             "runs": await recent_runs(),
-            "admin_token": get_settings().admin_token,
         },
     )
 

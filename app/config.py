@@ -41,7 +41,11 @@ class Settings(BaseSettings):
     )
 
     database_url: str
-    admin_token: str = "dev"
+    # Пустая строка по умолчанию — fail-closed: незаданный ADMIN_TOKEN закрывает
+    # админку целиком (`require_admin` отвергает всё), а не открывает её на
+    # угадываемом значении. Незаполненная переменная не должна выглядеть как
+    # рабочая конфигурация.
+    admin_token: str = ""
     # выключается на время локальных прогонов и тестов, чтобы плановый заход
     # не стартовал посреди ручного (T-48)
     scheduler_enabled: bool = True
@@ -49,10 +53,12 @@ class Settings(BaseSettings):
     ya300_session_id: str = ""
 
     # LLM (11-decisions.md OQ-1: Google AI Studio вместо Anthropic из design §5).
-    # ASSUMPTION: доступность конкретной модели на research-стадии не проверялась.
-    # Если её нет в API — меняется это значение (или env GEMINI_MODEL), а не
-    # архитектура адаптера: код от имени модели не зависит.
-    gemini_model: str = "gemini-3.8-flash"
+    # Модель проверена на живом API (00-research.md, приложение от 2026-09-07):
+    # 8/8 вызовов подряд с валидным structured output, ~1.2-2.0 с на вызов, ни
+    # одного 429. Квота бесплатного тира считается отдельно по каждой модели,
+    # так что смена модели — это и смена квоты. Меняется имя здесь или через
+    # env GEMINI_MODEL, архитектура адаптера от него не зависит.
+    gemini_model: str = "gemini-3.5-flash-lite"
     gemini_timeout_s: float = 60.0
     gemini_max_retries: int = 3       # design §5.5: 3 попытки, backoff 2/4/8 с
     gemini_failure_limit: int = 5     # design §5.5: circuit breaker на заход

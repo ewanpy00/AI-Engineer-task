@@ -176,8 +176,11 @@ class GeminiClient:
     ) -> LlmResult[LetsplayConclusionOut]:
         """Доп. часть 1 (T-43). Пересказ 300.ya.ru — такой же недоверенный ввод."""
         prompt = self._prompts.load(LETSPLAY_PROMPT)
+        # Название тоже приходит из Metacritic и экранируется наравне с
+        # пересказом: иначе title вида `</retelling>…` закрыл бы контейнер и
+        # всё, что за ним, модель прочитала бы как текст от нас.
         user_text = (
-            f"Игра: {game_title}\n\n"
+            f"Игра: {escape_review_text(game_title)}\n\n"
             f"<retelling>{escape_review_text(retelling)}</retelling>"
         )
         return await self._call(
@@ -205,8 +208,10 @@ class GeminiClient:
     @staticmethod
     def _reviews_user_text(game_title: str, quotes: Sequence[Quote]) -> str:
         # Название игры — в том же user-сообщении, что и цитаты: system-промпт
-        # общий на все игры и от конкретной игры не зависит.
-        return f"Игра: {game_title}\n\n{render_quotes(quotes)}"
+        # общий на все игры и от конкретной игры не зависит. Источник у названия
+        # тот же, что у цитат (ответ Metacritic), поэтому и экранируется оно так
+        # же: `</review>` в названии иначе разорвал бы разметку контейнеров.
+        return f"Игра: {escape_review_text(game_title)}\n\n{render_quotes(quotes)}"
 
     def _genai_client(self) -> Any:
         if self._client is None:
@@ -218,12 +223,6 @@ class GeminiClient:
     def _config(self, prompt: Prompt, schema: type[BaseModel]) -> Any:
         from google.genai import types
 
-        if prompt.model and prompt.model != self.model:
-            # Промпт писался под другую модель — не ошибка, но об этом стоит знать
-            log.info(
-                "промпт %s размечен под %s, вызов идёт в %s",
-                prompt.version_tag, prompt.model, self.model,
-            )
         # Замерено на живом API (gemini-3.8-flash, тот же промпт и цитаты):
         # без thinking_level вызов идёт ~43 с, с `low` — ~3 с, а на `high`
         # модель тратит ~860 токенов на размышления, упирается в

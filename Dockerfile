@@ -28,7 +28,13 @@ COPY . .
 
 # Каталог для JSONL-логов LLM. Без volume (OQ-3) он живёт до редеплоя, но
 # существовать обязан: логгер (T-29) пишет в него, а git пустые каталоги не хранит.
-RUN mkdir -p logs/llm && useradd --create-home --uid 10001 app && chown -R app:app /app
+#
+# Владелец кода и venv — root, приложению отдан на запись только logs/: процесс
+# под app не имеет права переписать собственный код, поэтому исполнение чужого
+# кода внутри контейнера не превращается в постоянную закладку в образе.
+RUN mkdir -p logs/llm \
+    && useradd --create-home --uid 10001 app \
+    && chown -R app:app /app/logs
 USER app
 
 EXPOSE 8000
