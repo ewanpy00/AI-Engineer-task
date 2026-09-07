@@ -42,10 +42,29 @@ def log_effective_config() -> None:
     )
 
 
+async def bootstrap_schema() -> None:
+    """Накатывает schema.sql, но старт процесса на этом не завязан.
+
+    Недоступная на старте БД (Railway поднимает Postgres рядом с приложением,
+    и порядок не гарантирован) не должна валить процесс: упавший старт
+    healthcheck'у отвечать нечем, и вместо «БД недоступна» платформа видит
+    приложение, которое не поднимается вовсе. Поднимаемся всегда, а факт
+    отказа отдаёт `/healthz` — 503, пока `SELECT 1` не проходит.
+
+    Схема идемпотентна, поэтому следующий старт применит её заново. Пока она
+    не применена, заходы будут падать на отсутствующих таблицах — с честной
+    строкой в `runs.error` и в логе процесса.
+    """
+    try:
+        await db.apply_schema()
+    except Exception:  # noqa: BLE001 — старт важнее схемы, см. docstring
+        log.exception("schema.sql не применён: база недоступна, /healthz отдаёт 503")
+
+
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     log_effective_config()
-    await db.apply_schema()
+    await bootstrap_schema()
     # События рестарт не переживают, дневные счётчики — обязаны (T-35).
     await restore_state()
     scheduler = create_scheduler(get_runner()) if get_settings().scheduler_enabled else None

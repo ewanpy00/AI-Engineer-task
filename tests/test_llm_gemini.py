@@ -18,6 +18,7 @@ from app.config import get_settings
 from app.llm.gemini_client import GeminiClient, escape_review_text, render_quotes
 from app.llm.jsonl_logger import JsonlLogger
 from app.llm.schemas import LetsplayConclusionOut, ReviewSummaryOut
+from app.web.templating import error_kind
 
 GOOD = {"liked": ["плотный дизайн уровней", "музыка"], "disliked": ["просадки кадров"],
         "tldr": "Принята тепло."}
@@ -223,6 +224,31 @@ async def test_429_is_retried_up_to_the_limit_then_fails_softly(logfile):
     assert {line["status"] for line in lines(logfile)} == {"error"}
 
 
+@pytest.mark.parametrize(
+    "outcome, error, reason",
+    [
+        (ApiError(429, "RESOURCE_EXHAUSTED"), "429: RESOURCE_EXHAUSTED", "429"),
+        (ApiError(500, "INTERNAL"), "500: INTERNAL", "500"),
+        (TimeoutError("read timeout"), "TimeoutError: read timeout", "TimeoutError"),
+    ],
+)
+async def test_failures_share_one_shape(logfile, outcome, error, reason):
+    """У всех отказов один вид `причина: текст`, и причина — один токен.
+
+    Проверяется вместе с `error_kind`, потому что смысл формы именно в нём:
+    страница статуса режет строку по первому двоеточию и наружу отдаёт только
+    причину. «429 ClientError: 429 RESOURCE_EXHAUSTED» она прочитала бы как
+    «429 ClientError», не признала бы причиной и показала бы «ошибка» — то
+    есть исчерпанная квота бесплатного тира (OQ-1) выглядела бы на странице
+    ровно как любой другой сбой. Код в сообщении google-genai уже есть,
+    поэтому второй раз он не приписывается.
+    """
+    result = await call(make_client(FakeGenai(outcome), logfile))
+
+    assert result.ok is False and result.error == error
+    assert error_kind(result.error) == reason
+
+
 async def test_retry_succeeds_after_transient_error(logfile):
     fake = FakeGenai(ApiError(503, "UNAVAILABLE"), GOOD)
     result = await call(make_client(fake, logfile))
@@ -262,6 +288,10 @@ async def test_auth_error_is_not_retried_and_opens_the_breaker(logfile):
     second = await call(client)  # дальше даже не ходим в сеть
     assert len(fake.calls) == 1
     assert second.ok is False and "llm_disabled" in second.error
+    # тот же вид `причина: текст`: выключенный до конца захода адаптер — это
+    # причина отказа, а исходный 403 остаётся в тексте
+    assert error_kind(second.error) == "llm_disabled"
+    assert second.error == "llm_disabled: 403: PERMISSION_DENIED"
 
 
 async def test_breaker_opens_after_five_consecutive_failures(logfile):

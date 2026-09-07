@@ -109,7 +109,7 @@ class FakeLlm:
     async def conclude_letsplay(self, *, game_title, retelling, context=None):
         self.calls.append({"title": game_title, "retelling": retelling, "context": context})
         if not self.ok:
-            return LlmResult(ok=False, error="429 RESOURCE_EXHAUSTED",
+            return LlmResult(ok=False, error="429: RESOURCE_EXHAUSTED",
                              prompt_version="letsplay_conclusion.v1", model="fake")
         return LlmResult(ok=True, value=LetsplayConclusionOut(conclusion=CONCLUSION),
                          prompt_version="letsplay_conclusion.v1", model="fake")
@@ -217,7 +217,9 @@ async def test_llm_failure_is_a_service_error_with_the_retelling_kept():
     assert (result.llm_calls, result.llm_failures) == (1, 1)
     saved = await row()
     assert saved["retelling"] == RETELLING and saved["conclusion"] is None
-    assert "429" in saved["error"]
+    # отказ модели уже пришёл с причиной — второго префикса поверх неё нет,
+    # иначе `error_kind` на странице статуса показал бы `llm`, а не квоту
+    assert saved["error"] == "429: RESOURCE_EXHAUSTED"
 
 
 async def test_llm_switched_off_keeps_the_retelling_and_marks_disabled():

@@ -53,6 +53,10 @@ class FakeMetacritic:
 
     def __init__(self, count: int = 3) -> None:
         self.items = [item(n) for n in range(count)]
+        # какой slug падает — поле, а не константа: переклейм упавших игр
+        # (T-49) проверяется только на игре, которая во втором заходе уже
+        # обрабатывается нормально
+        self.broken = BROKEN_SLUG
 
     async def list_new_releases(self, limit: int = 20) -> list[CatalogItem]:
         return self.items[:limit]
@@ -61,7 +65,7 @@ class FakeMetacritic:
         return BrowsePage(items=[], offset=offset, total=0)
 
     async def get_product(self, slug: str) -> Product:
-        if slug == BROKEN_SLUG:
+        if slug == self.broken:
             raise MetacriticError(500, f"/games/{slug}/web", "upstream is down")
         found = next(i for i in self.items if i.slug == slug)
         return Product(
@@ -106,7 +110,7 @@ class FakeLlm:
     async def summarize_reviews(self, *, audience, game_title, quotes, context=None):
         self.calls.append(f"{context['slug']}/{audience}")
         if not self.ok:
-            return LlmResult(ok=False, error="403 PERMISSION_DENIED",
+            return LlmResult(ok=False, error="403: PERMISSION_DENIED",
                              prompt_version=f"review_summary_{audience}.v1", model="fake")
         return LlmResult(ok=True, value=SUMMARY,
                          prompt_version=f"review_summary_{audience}.v1", model="fake")
@@ -265,6 +269,71 @@ async def test_run_survives_a_failing_game():
     assert statuses == {BASE_ID: "ok", BASE_ID + 1: "failed", BASE_ID + 2: "ok"}
     assert "MetacriticError" in next(r.error for r in rows if r.status == "failed")
     assert stored == 2
+
+
+async def status_of(game_id: int) -> str:
+    async with get_engine().connect() as conn:
+        return await conn.scalar(
+            text("SELECT status FROM processed_games WHERE day = :day AND game_id = :id"),
+            {"day": TODAY, "id": game_id},
+        )
+
+
+async def day_cursor() -> dict:
+    async with get_engine().connect() as conn:
+        row = (
+            await conn.execute(text("SELECT * FROM day_cursor WHERE day = :day"), {"day": TODAY})
+        ).one()
+    return dict(row._mapping)
+
+
+async def test_manual_run_reclaims_games_that_failed_today():
+    """OQ-7 (T-49): кнопка возвращает в работу упавшую сегодня игру.
+
+    Проверяются оба захода, потому что решение владельца именно в разнице
+    между ними: плановый упавшую игру до смены суток не берёт (ADR-6), а
+    ручной берёт — сверх дневной квоты, отдельным проходом и не двигая курсор
+    дня. Причину падения между заходами «устраняют»: смысл переклейма в том,
+    что игра доезжает до БД, а не падает второй раз.
+    """
+    fake = FakeMetacritic()
+    state = WorkerState()
+    run = runner(fake, state=state)
+
+    first = await run.run("manual")
+    assert (first.games_ok, first.games_failed) == (2, 1)
+    assert await status_of(BASE_ID + 1) == "failed"
+
+    fake.broken = None
+    scheduled = await run.run("schedule")
+
+    # плановый заход упавшую игру не тронул: своё он вычерпал, курсор ушёл дальше
+    assert (scheduled.games_claimed, scheduled.games_ok) == (0, 0)
+    assert await status_of(BASE_ID + 1) == "failed"
+    before = await day_cursor()
+
+    manual = await run.run("manual")
+
+    assert (manual.games_claimed, manual.games_ok, manual.games_failed) == (1, 1, 0)
+    assert manual.status == "ok"  # заход с пустым батчем, но с работой — не `empty`
+    assert await status_of(BASE_ID + 1) == "ok"
+
+    # курсор дня переклейм не двигает: ни фазу, ни offset, ни счётчики захода
+    assert await day_cursor() == before
+    # запись в журнале осталась одна на игру, но уже от ручного захода
+    async with get_engine().connect() as conn:
+        row = (
+            await conn.execute(
+                text(
+                    "SELECT count(*) AS rows, min(source) AS source FROM processed_games "
+                    "WHERE day = :day AND game_id = :id"
+                ),
+                {"day": TODAY, "id": BASE_ID + 1},
+            )
+        ).one()
+    assert (row.rows, row.source) == (1, "manual")
+    # панель статуса сходится с журналом: три игры за день, все три успешны
+    assert (state.claimed, state.ok, state.failed, state.in_progress) == (3, 3, 0, 0)
 
 
 async def summaries() -> dict[tuple[int, str], dict]:
