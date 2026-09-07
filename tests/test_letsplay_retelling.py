@@ -188,6 +188,22 @@ async def test_non_json_answer_is_reported_as_unavailable():
     assert exc.value.reason == "bad_json"
 
 
+async def test_own_client_does_not_follow_redirects():
+    """Кука `Session_id` не имеет права уехать на чужой хост.
+
+    httpx создаёт куку из словаря с пустым доменом, а он матчится на любой
+    хост: редирект с 300.ya.ru на сторонний домен унёс бы туда доступ к
+    аккаунту Яндекса целиком.
+    """
+    service = Ya300RetellingService(make_settings())
+
+    client = service._http()
+    try:
+        assert client.follow_redirects is False
+    finally:
+        await service.aclose()
+
+
 def test_extract_reads_flat_thesis_list_too():
     """Форма ответа не верифицирована — разбор терпим к обеим её версиям."""
     assert extract_retelling({"thesis": [{"content": "раз"}, {"content": "два"}]}) == "раз\nдва"

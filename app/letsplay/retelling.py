@@ -237,12 +237,18 @@ class Ya300RetellingService:
 
     def _http(self) -> httpx.AsyncClient:
         if self._client is None:
+            # follow_redirects=False намеренно. Куки, заданные словарём, httpx
+            # создаёт с пустым доменом, а он матчится на любой хост: редирект с
+            # 300.ya.ru на сторонний домен унёс бы туда `Session_id`, то есть
+            # доступ к аккаунту Яндекса целиком, а не к одной фиче. Редиректов
+            # у `/api/generation` нет, а если появятся — это 3xx, который
+            # `_post` отдаст как `RetellingUnavailable("http", …)`.
             self._client = httpx.AsyncClient(
                 base_url=self._settings.ya300_base_url,
                 timeout=self._settings.ya300_timeout_s,
                 headers={"User-Agent": USER_AGENT, "Accept": "application/json"},
                 cookies={SESSION_COOKIE: self._settings.ya300_session_id},
-                follow_redirects=True,
+                follow_redirects=False,
             )
         return self._client
 

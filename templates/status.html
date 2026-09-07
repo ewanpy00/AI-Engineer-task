@@ -8,12 +8,19 @@
 {% block content %}
   <h1>Статус воркера</h1>
 
-  {# Кнопка бьёт в ту же ручку, что и планировщик; токен подставлен сервером
-     (OQ-8). Ответ намеренно не подменяет разметку: что заход начался, видно в
-     ленте событий ниже, а не по перерисованному куску страницы. #}
+  {# Кнопка бьёт в ту же ручку, что и планировщик. Токен вводится здесь и
+     сервером в разметку не подставляется: страница открыта всем, и секрет в
+     HTML означал бы, что `POST /admin/run` может запустить любой прохожий.
+     `js:` в hx-headers вычисляет заголовок в момент запроса, поэтому токен
+     живёт только в поле ввода и в самом запросе.
+
+     Ответ намеренно не подменяет разметку: что заход начался, видно в ленте
+     событий ниже, а не по перерисованному куску страницы. #}
   <div class="run-row">
+    <input id="admin-token" type="password" autocomplete="off" spellcheck="false"
+           placeholder="Admin-токен" aria-label="Admin-токен">
     <button id="run-btn" hx-post="/admin/run" hx-swap="none"
-            hx-headers='{"X-Admin-Token": {{ admin_token | tojson }}}'>
+            hx-headers='js:{"X-Admin-Token": document.getElementById("admin-token").value}'>
       Запустить обработку сейчас
     </button>
     <span id="run-result" class="muted"></span>
@@ -45,7 +52,9 @@
           <td>{{ run.id }}</td>
           <td>{{ run.day }}</td>
           <td>{{ 'вручную' if run.trigger == 'manual' else 'план' }}</td>
-          <td>{{ run.status }}{% if run.error %}<div class="muted err">{{ run.error }}</div>{% endif %}</td>
+          {# Текст исключения на публичную страницу не выносим: в нём хосты,
+             пути и параметры запросов. Полный `runs.error` остаётся в БД. #}
+          <td>{{ run.status }}{% if run.error %}<div class="muted err">{{ run.error | error_kind }}</div>{% endif %}</td>
           <td>{{ run.phase or '—' }}</td>
           <td>{{ run.games_ok }}/{{ run.games_claimed }}{% if run.games_failed %}, ош. {{ run.games_failed }}{% endif %}</td>
           <td>{{ run.llm_calls }}{% if run.llm_failures %} / отказов {{ run.llm_failures }}{% endif %}</td>
@@ -72,7 +81,9 @@
 
   <style>
     h2 { font-size:16px; margin:26px 0 10px; }
-    .run-row { display:flex; align-items:center; gap:12px; margin:0 0 20px; }
+    .run-row { display:flex; align-items:center; gap:12px; margin:0 0 20px; flex-wrap:wrap; }
+    #admin-token { font:inherit; padding:8px 12px; border-radius:8px; width:210px;
+                   border:1px solid var(--line); background:var(--card); color:var(--fg); }
     #run-btn { font:inherit; padding:8px 14px; border-radius:8px; cursor:pointer;
                border:1px solid var(--line); background:var(--card); color:var(--fg); }
     #run-btn:hover { border-color:var(--muted); }

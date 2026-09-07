@@ -115,6 +115,38 @@ async def test_product_maps_every_field_of_the_card():
     await client.aclose()
 
 
+async def test_product_drops_a_video_url_with_an_untrusted_scheme():
+    """`video_url` уходит в `<iframe src>` карточки: там `javascript:` исполнится.
+
+    Проверка стоит на границе с чужим API, чтобы такая строка не доехала до БД.
+    """
+    payload = load("product")
+    payload["data"]["item"]["video"] = {
+        "embedUrl": "javascript:alert(document.domain)",
+        "manifestUrl": "javascript:alert(1)",
+    }
+    client, _ = client_serving(payload=payload)
+
+    product = await client.get_product("onimusha-way-of-the-sword")
+
+    assert product.video_url is None
+    await client.aclose()
+
+
+async def test_product_falls_back_to_the_manifest_url_when_embed_is_unusable():
+    payload = load("product")
+    payload["data"]["item"]["video"] = {
+        "embedUrl": "javascript:alert(1)",
+        "manifestUrl": "https://cdn.jwplayer.com/manifests/X.m3u8",
+    }
+    client, _ = client_serving(payload=payload)
+
+    product = await client.get_product("onimusha-way-of-the-sword")
+
+    assert product.video_url == "https://cdn.jwplayer.com/manifests/X.m3u8"
+    await client.aclose()
+
+
 async def test_product_platforms_carry_metascore_and_single_lead():
     client, _ = client_serving({"/games/metacritic/": "product"})
     product = await client.get_product("onimusha-way-of-the-sword")
