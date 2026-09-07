@@ -32,7 +32,7 @@ from app.db import get_engine
 from app.letsplay.dto import LetsplayResult, VideoCandidate
 from app.letsplay.finder import YtDlpFinder
 from app.letsplay.retelling import RetellingUnavailable, Ya300RetellingService
-from app.llm.gemini_client import GeminiClient, get_llm_client
+from app.llm.gemini_client import GeminiClient, get_llm_client, llm_error
 
 log = logging.getLogger(__name__)
 
@@ -166,7 +166,10 @@ class LetsplayPipeline:
             context={"game_id": game_id, "run_id": run_id, "kind": "letsplay"},
         )
         if not result.ok or result.value is None:
-            error = f"llm: {result.error or 'нет ответа модели'}"[:ERROR_LIMIT]
+            # Отказ модели уже приходит в общем виде `причина: текст`
+            # (`llm_error` в адаптере) — второй префикс поверх него только
+            # спрятал бы причину от `error_kind` на странице статуса.
+            error = (result.error or llm_error("llm", "нет ответа модели"))[:ERROR_LIMIT]
             await self._save(
                 game_id, status="service_error", video=video, retelling=retelling, error=error
             )

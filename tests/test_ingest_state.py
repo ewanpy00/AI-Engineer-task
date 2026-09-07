@@ -19,7 +19,7 @@ from sqlalchemy import text
 from app.clients.dto import CatalogItem
 from app.db import dispose_engine, get_engine
 from app.ingest.day_cursor_repo import DayCursorRepo
-from app.ingest.processed_repo import ProcessedRepo
+from app.ingest.processed_repo import RECLAIM_LIMIT, ProcessedRepo
 
 TEST_DAY = date(2999, 1, 1)
 BASE_ID = 9_000_200_000
@@ -124,6 +124,76 @@ async def test_failed_game_is_not_reclaimed_the_same_day():
     assert row.status == "failed"
     assert row.error == "MetacriticError: 500"
     assert row.finished_at is not None
+
+
+async def status_row(game_id: int):
+    async with get_engine().connect() as conn:
+        return (
+            await conn.execute(
+                text(
+                    "SELECT status, source, run_id, error, finished_at "
+                    "FROM processed_games WHERE day = :day AND game_id = :id"
+                ),
+                {"day": TEST_DAY, "id": game_id},
+            )
+        ).one()
+
+
+async def test_reclaim_returns_failed_games_to_work():
+    """OQ-7: кнопка забирает упавшие сегодня игры, плановый заход — по-прежнему нет."""
+    repo = ProcessedRepo()
+    claimed = await repo.claim(TEST_DAY, 1, "browse", items(3))
+    await repo.finish(TEST_DAY, claimed[0].id, ok=False, error="MetacriticError: 500")
+    await repo.finish(TEST_DAY, claimed[1].id, ok=True)
+
+    back = await repo.reclaim_failed(TEST_DAY, 7)
+
+    assert [game.id for game in back] == [claimed[0].id]
+    # названия в `games` нет: игра могла упасть на первом же обращении к
+    # Metacritic, до вставки в каталог, — тогда вместо названия идёт slug
+    assert back[0].title == claimed[0].slug
+
+    row = await status_row(claimed[0].id)
+    assert (row.status, row.source, row.run_id) == ("claimed", "manual", 7)
+    assert (row.error, row.finished_at) == (None, None)
+    assert (await repo.counters(TEST_DAY)).failed == 0
+
+    # игра снова в работе, а не свободна: ни плановый заход, ни второе нажатие
+    # её сегодня не возьмут
+    assert await repo.claim(TEST_DAY, 8, "browse", items(3)) == []
+    assert await repo.reclaim_failed(TEST_DAY, 9) == []
+    # успешную игру переклейм не трогает
+    assert (await status_row(claimed[1].id)).status == "ok"
+
+
+async def test_reclaim_takes_no_more_than_the_quota_per_run():
+    """OQ-7: максимум 20 игр за нажатие — лежавший полдня Metacritic не должен
+    превращать один заход в многочасовой."""
+    repo = ProcessedRepo()
+    claimed = await repo.claim(TEST_DAY, 1, "browse", items(RECLAIM_LIMIT + 5))
+    for game in claimed:
+        await repo.finish(TEST_DAY, game.id, ok=False, error="boom")
+
+    first = await repo.reclaim_failed(TEST_DAY, 2)
+    second = await repo.reclaim_failed(TEST_DAY, 3)  # остаток ждёт следующего нажатия
+
+    assert (len(first), len(second)) == (RECLAIM_LIMIT, 5)
+    assert {game.id for game in first}.isdisjoint({game.id for game in second})
+
+
+async def test_reclaim_does_not_touch_the_day_cursor():
+    """Переклейм идёт сверх дневной квоты: фаза и offset дня остаются на месте."""
+    repo = ProcessedRepo()
+    await DayCursorRepo().get_or_create(TEST_DAY)
+    before = await DayCursorRepo().advance(
+        TEST_DAY, phase="browse", browse_offset=40, claimed=20
+    )
+    [game] = await repo.claim(TEST_DAY, 1, "browse", items(1))
+    await repo.finish(TEST_DAY, game.id, ok=False, error="boom")
+
+    assert len(await repo.reclaim_failed(TEST_DAY, 2)) == 1
+
+    assert await DayCursorRepo().get(TEST_DAY) == before
 
 
 async def test_counters_match_table():

@@ -5,10 +5,14 @@
 `responseSchema`, а не через tool use. Контракты `LlmClient`/`LlmResult` из
 design §4.4 сохранены как форма — меняется только реализация.
 
-Два свойства, на которых держится весь LLM-слой:
+Три свойства, на которых держится весь LLM-слой:
   * наружу не летит ни одно исключение — отказ приходит как `LlmResult(ok=False)`,
     потому что резюме обогащает карточку и не должно ронять обход (design §5.5);
-  * каждая попытка, включая неудачную, оседает строкой в JSONL (design §5.4).
+  * каждая попытка, включая неудачную, оседает строкой в JSONL (design §5.4);
+  * у всех отказов один вид — `причина: текст`, см. `llm_error`. Причина —
+    машинный токен (HTTP-код, `schema`, имя класса исключения), и по нему
+    веб-слой решает, что показать на открытой всем странице статуса
+    (`app.web.templating.error_kind`).
 """
 
 from __future__ import annotations
@@ -69,6 +73,25 @@ class _Attempt:
     output_tokens: int = 0
     latency_ms: int = 0
     raw_response: Any = None
+
+
+def llm_error(reason: str | int, detail: str | None = None) -> str:
+    """Единый вид отказа LLM: `причина: текст`.
+
+    Причина — один машинный токен, дальше произвольный текст. Форма не
+    косметическая: `error_kind` в веб-слое режет строку по первому двоеточию и
+    наружу отдаёт только причину, поэтому «429 ClientError: 429
+    RESOURCE_EXHAUSTED» на странице выглядело бы просто «ошибка», а квота —
+    самая частая причина отказа на бесплатном тире (11-decisions.md, OQ-1).
+
+    Повтор причины в тексте убирается: у ошибок google-genai сообщение само
+    начинается с HTTP-кода, и без этого код попадал бы в строку дважды.
+    """
+    prefix = str(reason)
+    text = (detail or "").strip()
+    while prefix and text.startswith(prefix):
+        text = text[len(prefix) :].lstrip(" :")
+    return f"{prefix}: {text}"[:ERROR_LIMIT] if text else prefix
 
 
 def escape_review_text(text: str) -> str:
@@ -265,7 +288,7 @@ class GeminiClient:
             **context,
         }
         if self._breaker.is_open:
-            error = f"llm_disabled: {self._breaker.reason}"
+            error = llm_error("llm_disabled", self._breaker.reason)
             await self._log(base, attempt=0, messages=None, outcome=_Attempt(error=error))
             return self._failure(prompt, error, attempts=0)
 
@@ -330,7 +353,7 @@ class GeminiClient:
         except (ValidationError, ValueError) as exc:
             # Ответ не лёг в схему: повторять с тем же вводом бессмысленно,
             # но урезанный ввод иногда помогает — идём по ветке shrink.
-            outcome.error = f"schema: {exc}"[:ERROR_LIMIT]
+            outcome.error = llm_error("schema", str(exc))
             outcome.shrink = True
             outcome.raw_response = getattr(response, "text", None)
         return outcome
@@ -367,21 +390,27 @@ class GeminiClient:
         code = getattr(exc, "code", None)
         if not isinstance(code, int):
             code = getattr(getattr(exc, "response", None), "status_code", None)
-        label = f"{type(exc).__name__}: {exc}"[:ERROR_LIMIT]
 
         if isinstance(code, int):
+            # Причина — сам код, а не класс исключения: у google-genai это на
+            # все 4xx один и тот же `ClientError`, и различать отказы по нему
+            # нельзя. Имя класса в тексте не нужно — сообщение и так с кодом.
             return _Attempt(
-                error=f"{code} {label}"[:ERROR_LIMIT],
+                error=llm_error(code, str(exc)),
                 retryable=code in RETRYABLE_CODES,
                 fatal=code in FATAL_CODES,
                 shrink=code in SHRINK_CODES,
                 latency_ms=latency_ms,
             )
-        # Таймаут или обрыв соединения: кода нет, но повторить стоит.
+        # Таймаут или обрыв соединения: кода нет, причина — класс исключения.
         retryable = isinstance(exc, (TimeoutError, asyncio.TimeoutError, ConnectionError)) or (
             type(exc).__module__.startswith("httpx")
         )
-        return _Attempt(error=label, retryable=retryable, latency_ms=latency_ms)
+        return _Attempt(
+            error=llm_error(type(exc).__name__, str(exc)),
+            retryable=retryable,
+            latency_ms=latency_ms,
+        )
 
     @staticmethod
     def _messages(prompt: Prompt, user_text: str) -> list[dict[str, str]]:

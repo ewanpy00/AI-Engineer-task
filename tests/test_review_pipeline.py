@@ -114,7 +114,7 @@ class FakeLlm:
             }
         )
         if not self.ok:
-            return LlmResult(ok=False, error="429 RESOURCE_EXHAUSTED",
+            return LlmResult(ok=False, error="429: RESOURCE_EXHAUSTED",
                              prompt_version=f"review_summary_{audience}.v1", model="fake-model")
         return LlmResult(ok=True, value=SUMMARY,
                          prompt_version=f"review_summary_{audience}.v1", model="fake-model")
@@ -239,7 +239,7 @@ async def test_llm_failure_becomes_llm_failed_and_is_retried_next_time(tmp_path)
 
     rows = await summaries()
     assert {row["status"] for row in rows.values()} == {"llm_failed"}
-    assert rows["user"]["error"] == "429 RESOURCE_EXHAUSTED"
+    assert rows["user"]["error"] == "429: RESOURCE_EXHAUSTED"
     # хеш не сохранён: неудача не должна выглядеть как актуальное резюме
     assert rows["user"]["quotes_hash"] is None
 

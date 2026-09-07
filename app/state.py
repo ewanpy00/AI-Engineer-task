@@ -107,6 +107,11 @@ class WorkerState:
                 self.phase = payload.get("phase") or self.phase
                 self.browse_offset = payload.get("browse_offset", self.browse_offset)
                 self.claimed += payload.get("claimed", 0)
+                # Переклейм (OQ-7) новых игр в журнал не добавляет — он забирает
+                # их из `failed` обратно в работу, поэтому в счётчиках дня
+                # уменьшается `failed`, а не растёт `claimed`. Иначе панель
+                # разошлась бы с `processed_games`, откуда её читает `restore`.
+                self.failed = max(self.failed - payload.get("reclaimed", 0), 0)
             case "game_started":
                 self.in_flight[payload["slug"]] = payload.get("title") or payload["slug"]
             case "game_done":

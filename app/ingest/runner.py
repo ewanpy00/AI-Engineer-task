@@ -1,7 +1,9 @@
 """Оркестратор одного захода (T-22, design §2.3, §4.3).
 
 Заход = advisory lock + фиксированный день + батч из селектора + обработка игр
-+ строка в `runs`. Резюме отзывов (T-30) и летсплей (T-44) подключены внутрь
++ строка в `runs`. Ручной заход добавляет к батчу переклейм упавших сегодня
+игр (OQ-7, T-49): отдельный проход сверх дневной квоты, курсор дня он не
+двигает. Резюме отзывов (T-30) и летсплей (T-44) подключены внутрь
 `process_game` отдельными best-effort шагами по одному принципу: обогащение не
 решает судьбу игры в `processed_games` и не имеет права уронить заход.
 
@@ -228,7 +230,7 @@ class IngestRunner:
         self._emit("run_started", run_id=run_id, trigger=trigger, day=day)
 
         phase: str | None = None
-        pages = claimed = ok = failed = 0
+        pages = claimed = catchup = reclaimed_count = ok = failed = 0
         llm = Outcome()
         status: RunStatus = "failed"
         error: str | None = None
@@ -238,24 +240,35 @@ class IngestRunner:
         try:
             selector = BatchSelector(self.client, self._cursors, self._processed)
             batch = await selector.next_batch(day, run_id)
+            reclaimed = await self._reclaim_failed(day, run_id, trigger)
+            items = batch.items + reclaimed
             # в `runs.phase` пишем фазу дня *после* захода: странице статуса важно,
             # откуда пойдёт следующий час, а не откуда пришёл этот батч
-            phase, pages, claimed = batch.cursor_after.phase, batch.pages_fetched, len(batch.items)
+            phase, pages, claimed = batch.cursor_after.phase, batch.pages_fetched, len(items)
+            # добор и переклейм отдельными числами только в логе: в `runs` они
+            # считаются наравне с каталожными играми — работа над ними та же самая
+            catchup = batch.catchup_count
+            reclaimed_count = len(reclaimed)
             async with get_engine().begin() as conn:
                 await conn.execute(
                     _UPDATE_BATCH,
                     {"id": run_id, "phase": phase, "pages": pages, "claimed": claimed},
                 )
+            # `claimed` в событии — только новые claim'ы: дневной счётчик на
+            # странице статуса считает игры, а переклеймленные в нём уже
+            # посчитаны с первой попытки. Их вклад — `reclaimed`: столько игр
+            # ушло из `failed` обратно в работу.
             self._emit(
-                "counters", run_id=run_id, phase=phase, pages=pages, claimed=claimed,
+                "counters", run_id=run_id, phase=phase, pages=pages,
+                claimed=len(batch.items), reclaimed=len(reclaimed),
                 browse_offset=batch.cursor_after.browse_offset,
             )
 
-            results = await self._process_all(batch.items, run_id, day)
+            results = await self._process_all(items, run_id, day)
             ok = sum(1 for r in results if r.ok)
             failed = len(results) - ok
             llm = sum((r.llm for r in results), Outcome())
-            status = "ok" if batch.items else "empty"
+            status = "ok" if items else "empty"
         except Exception as exc:  # noqa: BLE001 — заход не должен уронить процесс
             error = f"{type(exc).__name__}: {exc}"[:ERROR_LIMIT]
             log.exception("заход #%s провалился", run_id)
@@ -271,8 +284,9 @@ class IngestRunner:
                 )
 
         log.info(
-            "заход #%s завершён: %s, ok=%s failed=%s, вызовов LLM %s (неудачных %s)",
-            run_id, status, ok, failed, llm.calls, llm.failures,
+            "заход #%s завершён: %s, ok=%s failed=%s (из них добор %s, переклейм %s), "
+            "вызовов LLM %s (неудачных %s)",
+            run_id, status, ok, failed, catchup, reclaimed_count, llm.calls, llm.failures,
         )
         self._emit(
             "run_finished", run_id=run_id, trigger=trigger, day=day, status=status,
@@ -284,6 +298,29 @@ class IngestRunner:
             pages_fetched=pages, games_claimed=claimed, games_ok=ok, games_failed=failed,
             llm_calls=llm.calls, llm_failures=llm.failures, error=error,
         )
+
+    async def _reclaim_failed(
+        self, day: date, run_id: int, trigger: Trigger
+    ) -> list[CatalogItem]:
+        """OQ-7 (T-49): ручной запуск дополнительно берёт упавшие сегодня игры.
+
+        Только по кнопке. Плановый заход упавшую игру до смены суток не
+        переклеймивает (ADR-6): одна «ядовитая» игра иначе выедала бы квоту
+        каждый час, а кнопку нажимает человек — он и решает, что причина
+        падения устранена.
+
+        Проход отдельный и сверх дневной квоты: свои двадцать игр из каталога
+        заход уже взял выше, курсор дня уже сдвинут, и переклейм его не
+        трогает. Ограничение на заход — `RECLAIM_LIMIT`: при лежавшем полдня
+        Metacritic упавших игр набирается больше, чем разумно обработать за
+        один заход, а следующая кнопка возьмёт следующие.
+        """
+        if trigger != "manual":
+            return []
+        items = await self._processed.reclaim_failed(day, run_id)
+        if items:
+            log.info("переклейм упавших сегодня игр: %s", len(items))
+        return items
 
     async def _process_all(
         self, items: list[CatalogItem], run_id: int, day: date

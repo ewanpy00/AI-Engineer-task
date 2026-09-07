@@ -7,7 +7,7 @@
   {%- if event.kind == 'run_started' %}
     <b>Заход #{{ p.run_id }} начат</b> — {{ 'вручную' if p.trigger == 'manual' else 'по расписанию' }}
   {%- elif event.kind == 'counters' %}
-    Батч выбран: {{ p.claimed }} игр, фаза {{ p.phase }}, страниц {{ p.pages }}
+    Батч выбран: {{ p.claimed }} игр{% if p.reclaimed %}, переклейм {{ p.reclaimed }}{% endif %}, фаза {{ p.phase }}, страниц {{ p.pages }}
   {%- elif event.kind == 'game_started' %}
     <span class="mark">→</span> {{ p.title or p.slug }}
   {%- elif event.kind == 'game_done' %}

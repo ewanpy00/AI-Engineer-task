@@ -53,9 +53,21 @@ def test_error_kind_keeps_only_the_reason():
     assert error_kind("no_session: YA300_SESSION_ID не задан") == "no_session"
 
 
+def test_error_kind_keeps_an_http_code_as_the_reason():
+    """Отказ LLM приходит с кодом вместо имени класса (`llm_error`).
+
+    Квота бесплатного тира — самая частая причина отказа модели (OQ-1), и на
+    странице она должна читаться как `429`, а не как безымянная «ошибка».
+    """
+    assert error_kind("429: RESOURCE_EXHAUSTED. {'error': {'status': ...}}") == "429"
+    assert error_kind("llm_disabled: 429: RESOURCE_EXHAUSTED") == "llm_disabled"
+    assert error_kind("9999: не HTTP-код") == UNKNOWN_REASON
+
+
 def test_error_kind_hides_text_without_a_machine_reason():
     """Всё, что не похоже на имя причины, наружу не выносим целиком."""
     assert error_kind("connect to user@10.0.0.5:5432 failed") == UNKNOWN_REASON
+    assert error_kind("10.0.0.5:5432 connection refused") == UNKNOWN_REASON
     assert error_kind("<b>boom</b>") == UNKNOWN_REASON
 
 
