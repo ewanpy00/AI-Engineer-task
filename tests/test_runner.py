@@ -169,6 +169,18 @@ def runner(
 
 
 @pytest.fixture(autouse=True)
+def no_catchup(monkeypatch):
+    """Заход идёт ровно по фейковому каталогу, без добора из базы.
+
+    Догоняющее обновление берёт кандидатов из реальной таблицы `games`, а
+    `FakeMetacritic` знает только свои `zzq-run-*`: с включённым добором заход
+    считал бы чужие игры провалившимися. Сам добор проверяется в
+    `test_selector.py`.
+    """
+    monkeypatch.setattr(get_settings(), "catchup_limit", 0)
+
+
+@pytest.fixture(autouse=True)
 async def clean_test_rows():
     try:
         saved = await snapshot_and_clear()

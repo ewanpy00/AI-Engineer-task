@@ -33,6 +33,12 @@ CREATE INDEX IF NOT EXISTS games_best_metascore_idx
 CREATE INDEX IF NOT EXISTS games_best_userscore_idx
     ON games (best_userscore DESC NULLS LAST);
 CREATE INDEX IF NOT EXISTS games_first_seen_idx ON games (first_seen_at DESC);
+-- Очередь догоняющего обновления (app/ingest/catchup_repo.py): условие индекса
+-- повторяет условие выборки, поэтому заход читает только неполные игры, а не
+-- весь каталог.
+CREATE INDEX IF NOT EXISTS games_incomplete_idx
+    ON games (updated_at)
+    WHERE cover_path IS NULL OR best_metascore IS NULL;
 
 CREATE TABLE IF NOT EXISTS game_platforms (
     game_id             bigint      NOT NULL REFERENCES games(id) ON DELETE CASCADE,
@@ -113,7 +119,8 @@ CREATE TABLE IF NOT EXISTS processed_games (
     day           date   NOT NULL,
     game_id       bigint NOT NULL,                    -- FK намеренно нет: клеймим до вставки в games
     slug          text   NOT NULL,
-    source        text   NOT NULL CHECK (source IN ('new_releases','browse','manual')),
+    source        text   NOT NULL
+                  CHECK (source IN ('new_releases','browse','manual','catchup')),
     status        text   NOT NULL DEFAULT 'claimed'
                   CHECK (status IN ('claimed','ok','failed')),
     run_id        bigint,
@@ -122,6 +129,13 @@ CREATE TABLE IF NOT EXISTS processed_games (
     finished_at   timestamptz,
     PRIMARY KEY (day, game_id)
 );
+-- `catchup` добавился к источникам позже таблицы, а миграций в проекте нет
+-- (ADR-3): CREATE TABLE IF NOT EXISTS на развёрнутой базе CHECK не тронет.
+-- DROP + ADD идемпотентен и на пустой базе, и на живой.
+ALTER TABLE processed_games DROP CONSTRAINT IF EXISTS processed_games_source_check;
+ALTER TABLE processed_games ADD CONSTRAINT processed_games_source_check
+    CHECK (source IN ('new_releases','browse','manual','catchup'));
+
 CREATE INDEX IF NOT EXISTS processed_games_day_status_idx ON processed_games (day, status);
 CREATE INDEX IF NOT EXISTS processed_games_run_idx ON processed_games (run_id);
 

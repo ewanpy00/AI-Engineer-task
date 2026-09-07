@@ -228,7 +228,7 @@ class IngestRunner:
         self._emit("run_started", run_id=run_id, trigger=trigger, day=day)
 
         phase: str | None = None
-        pages = claimed = ok = failed = 0
+        pages = claimed = catchup = ok = failed = 0
         llm = Outcome()
         status: RunStatus = "failed"
         error: str | None = None
@@ -241,6 +241,9 @@ class IngestRunner:
             # в `runs.phase` пишем фазу дня *после* захода: странице статуса важно,
             # откуда пойдёт следующий час, а не откуда пришёл этот батч
             phase, pages, claimed = batch.cursor_after.phase, batch.pages_fetched, len(batch.items)
+            # добор отдельным числом только в логе: в `runs` догоняющие игры
+            # считаются наравне с каталожными — работа над ними та же самая
+            catchup = batch.catchup_count
             async with get_engine().begin() as conn:
                 await conn.execute(
                     _UPDATE_BATCH,
@@ -271,8 +274,9 @@ class IngestRunner:
                 )
 
         log.info(
-            "заход #%s завершён: %s, ok=%s failed=%s, вызовов LLM %s (неудачных %s)",
-            run_id, status, ok, failed, llm.calls, llm.failures,
+            "заход #%s завершён: %s, ok=%s failed=%s (из них добор %s), "
+            "вызовов LLM %s (неудачных %s)",
+            run_id, status, ok, failed, catchup, llm.calls, llm.failures,
         )
         self._emit(
             "run_finished", run_id=run_id, trigger=trigger, day=day, status=status,
