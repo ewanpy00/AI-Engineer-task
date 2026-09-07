@@ -102,6 +102,29 @@ async def test_status_page_never_renders_the_admin_token():
     assert token and token not in text
 
 
+async def test_status_page_shows_the_effective_model():
+    """«Какая модель у прода» должно быть видно из браузера.
+
+    В резюме модель попадает только после успешной генерации, а когда её нет —
+    именно этот вопрос и нужно задать первым.
+    """
+    from app.config import get_settings
+
+    text = (await get_status()).text
+
+    assert get_settings().gemini_model in text
+    assert "ключ задан" in text  # факт, не значение
+
+
+async def test_panel_frame_carries_the_model_too(monkeypatch):
+    """SSE-кадр собирается тем же шаблоном — контекст у него должен совпадать."""
+    from app.config import get_settings
+
+    panel = routes_status.panel_frame(get_state())
+
+    assert get_settings().gemini_model in panel
+
+
 async def frames(stream, n: int) -> list[str]:
     """Первые `n` кадров потока; кадр — всё до пустой строки."""
     out: list[str] = []

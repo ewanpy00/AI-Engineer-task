@@ -110,9 +110,14 @@
                 <p class="muted">Заметных претензий в отзывах нет.</p>
               {% endif %}
               {% if s.tldr %}<p class="tldr">{{ s.tldr }}</p>{% endif %}
+              {# Модель и версия промпта — происхождение резюме. Без них
+                 проверить, чем именно оно сгенерировано, можно только запросом
+                 к БД: на проде окружение переопределяет дефолт репозитория. #}
               <p class="muted origin">
                 {{ 'Рецензий' if audience == 'critic' else 'Отзывов' }}: {{ s.quotes_count }}
                 {%- if s.generated_at %} · собрано {{ s.generated_at.strftime('%d.%m.%Y') }}{% endif %}
+                {%- if s.model %} · {{ s.model }}{% endif %}
+                {%- if s.prompt_version %} · {{ s.prompt_version }}{% endif %}
               </p>
             {% elif s and s.status == 'no_data' %}
               <p class="muted">Отзывов пока нет.</p>
