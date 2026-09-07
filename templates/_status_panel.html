@@ -25,6 +25,13 @@
     <span class="muted">ошибок {{ state.failed }}, в работе {{ state.in_progress }}</span>
   </div>
   <div class="tile">
+    <span class="label">Модель</span>
+    {# Эффективное значение из окружения, а не дефолт репозитория: расхождение
+       между ними — самая дешёвая причина «резюме не генерируются». #}
+    <b>{{ llm.gemini_model if llm.llm_enabled else 'LLM выключен' }}</b>
+    <span class="muted">{{ 'ключ задан' if llm.google_api_key else 'ключ не задан' }}</span>
+  </div>
+  <div class="tile">
     <span class="label">Вызовов LLM</span>
     <b>{{ state.llm_calls }}</b>
     <span class="muted">

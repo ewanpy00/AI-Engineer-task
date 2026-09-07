@@ -28,15 +28,17 @@ PLATFORM = "test-plat"
 LIKED = ["плотный дизайн уровней", "музыка"]
 DISLIKED = ["просадки кадров"]
 TLDR = "Приняли тепло."
+MODEL = "gemini-3.5-flash-lite"
+PROMPT_VERSION = "review_summary_critic.v1"
 
 _INSERT = text(
     """
     INSERT INTO review_summaries (
         game_id, audience, platform_slug, liked, disliked, tldr,
-        quotes_count, quotes_hash, source, status, error
+        quotes_count, quotes_hash, source, status, error, model, prompt_version
     ) VALUES (
         :game_id, :audience, :platform, CAST(:liked AS jsonb), CAST(:disliked AS jsonb),
-        :tldr, :count, :hash, :source, :status, :error
+        :tldr, :count, :hash, :source, :status, :error, :model, :prompt_version
     )
     """
 )
@@ -75,6 +77,8 @@ async def add_summary(audience: str, status: str = "ok", **overrides) -> None:
         "tldr": TLDR if status == "ok" else None,
         "count": 12, "hash": "h" * 64, "source": "summary_endpoint",
         "status": status, "error": None,
+        "model": MODEL if status == "ok" else None,
+        "prompt_version": PROMPT_VERSION if status == "ok" else None,
     } | overrides
     async with get_engine().begin() as conn:
         await conn.execute(_INSERT, params)
@@ -101,6 +105,19 @@ async def test_repo_returns_summaries_keyed_by_audience():
     assert rows["critic"]["liked"] == LIKED  # jsonb приезжает списком, а не строкой
     assert rows["user"]["status"] == "no_data"
     assert await get_review_summaries(GAME_ID + 999) == {}
+
+
+async def test_card_shows_which_model_produced_the_summary():
+    """Происхождение резюме видно из карточки, без доступа к БД.
+
+    На проде окружение переопределяет дефолт репозитория, и «резюме не
+    генерируются» чаще всего означает «модель не та, что ожидалась».
+    """
+    await add_summary("critic")
+
+    html = await card()
+
+    assert MODEL in html and PROMPT_VERSION in html
 
 
 async def test_ok_summaries_render_two_separate_blocks():

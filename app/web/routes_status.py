@@ -20,6 +20,7 @@ from collections.abc import AsyncIterator
 from fastapi import APIRouter, Request
 from fastapi.responses import StreamingResponse
 
+from app.config import get_settings
 from app.events import RECENT_DEFAULT, Event, get_bus
 from app.state import WorkerState, get_state
 from app.web.repo_status import recent_runs
@@ -56,7 +57,9 @@ def frame(name: str, html: str) -> str:
 
 
 def panel_frame(state: WorkerState) -> str:
-    return frame("panel", render(PANEL_TEMPLATE, state=state))
+    # `llm` — тот же контекст, что и у первичного рендера: панель собирается
+    # одним шаблоном, и SSE-кадр не должен отличаться от неё набором полей.
+    return frame("panel", render(PANEL_TEMPLATE, state=state, llm=get_settings()))
 
 
 def event_frame(event: Event) -> str:
@@ -80,6 +83,10 @@ async def status_page(request: Request):
             "state": get_state(),
             "events": list(reversed(get_bus().recent(RECENT_DEFAULT))),  # свежие сверху
             "runs": await recent_runs(),
+            # Имя модели — не секрет (оно и в README), а вопрос «какая модель у
+            # прода» иначе требует доступа к БД: в UI модель видна только в уже
+            # сгенерированном резюме, которого при отказах как раз и нет.
+            "llm": get_settings(),
         },
     )
 

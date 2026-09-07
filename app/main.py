@@ -20,8 +20,31 @@ logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(name
 log = logging.getLogger(__name__)
 
 
+def log_effective_config() -> None:
+    """Что реально включено в этом процессе — первой строкой в логе.
+
+    Модель, окружение и рубильники задаются переменными окружения, и на проде
+    их значение расходится с дефолтом репозитория незаметно: заход при этом
+    отрабатывает «успешно», а резюме не появляются. Одна строка в старте
+    отвечает на вопрос «какая модель у прода» без доступа к БД. Значения
+    секретов не пишем — только факт, задан ли секрет.
+    """
+    s = get_settings()
+    log.info(
+        "конфигурация: модель %s, LLM %s (ключ %s); летсплеи %s (кука 300.ya.ru %s); "
+        "планировщик %s",
+        s.gemini_model,
+        "включён" if s.llm_enabled else "ВЫКЛЮЧЕН",
+        "задан" if s.google_api_key else "НЕ ЗАДАН",
+        "включены" if s.letsplay_enabled else "ВЫКЛЮЧЕНЫ",
+        "задана" if s.ya300_session_id else "НЕ ЗАДАНА",
+        "включён" if s.scheduler_enabled else "выключен",
+    )
+
+
 @asynccontextmanager
 async def lifespan(app: FastAPI):
+    log_effective_config()
     await db.apply_schema()
     # События рестарт не переживают, дневные счётчики — обязаны (T-35).
     await restore_state()

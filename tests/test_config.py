@@ -25,3 +25,21 @@ def test_sslmode_translated_to_asyncpg_ssl():
 def test_sslmode_disable_dropped_without_ssl_param():
     url = normalize_database_url("postgresql://u:p@h:5432/db?sslmode=disable")
     assert url == "postgresql+asyncpg://u:p@h:5432/db"
+
+
+def test_startup_log_reports_config_without_leaking_secrets(caplog):
+    """Строка старта отвечает «какая модель», но не печатает сами секреты."""
+    import logging
+
+    from app.config import get_settings
+    from app.main import log_effective_config
+
+    settings = get_settings()
+    with caplog.at_level(logging.INFO, logger="app.main"):
+        log_effective_config()
+
+    (record,) = [r for r in caplog.records if "конфигурация" in r.getMessage()]
+    message = record.getMessage()
+    assert settings.gemini_model in message
+    for secret in (settings.google_api_key, settings.ya300_session_id, settings.admin_token):
+        assert not secret or secret not in message
